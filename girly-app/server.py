@@ -15,11 +15,14 @@ Environment variables (all optional):
     GIRLY_WEB        frontend root (default web/)
     GIRLY_ASSISTANT  companion service URL (default http://127.0.0.1:3000)
 
-    Optional AI layer for the companion (answers questions the built-in
-    knowledge base doesn't cover; without a key it stays fully offline):
-    GIRLY_AI_API_KEY   (or ANTHROPIC_API_KEY) enables the AI layer
-    GIRLY_AI_MODEL     model to use (default claude-sonnet-5)
-    GIRLY_AI_API_URL   override the API endpoint
+    Optional AI layer for the companion (answers health & hygiene questions;
+    without a key it falls back to the built-in knowledge base):
+    GEMINI_API_KEY     enables Gemini (default gemini-3.1-flash-lite)
+    ANTHROPIC_API_KEY  enables Anthropic instead (default claude-sonnet-5)
+    GIRLY_AI_PROVIDER  force "gemini" or "anthropic" when both keys are set
+    GIRLY_AI_API_KEY   generic key, paired with GIRLY_AI_PROVIDER
+    GIRLY_AI_MODEL     override the model
+    GIRLY_AI_API_URL   override the API endpoint ({model} is substituted)
 """
 
 import json

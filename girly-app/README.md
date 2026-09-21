@@ -29,19 +29,46 @@ The chat answers questions across three areas, all offline by default:
   dental, feet, nails, handwashing, …
 
 Plain greetings ("hi", "hello") get a simple hello back — no extra info
-attached. Questions the knowledge base doesn't recognise fall through to an
-optional AI layer:
+attached. Everything else goes to Gemini, so the companion can answer
+questions no keyword list anticipated:
 
 ```bash
-export GIRLY_AI_API_KEY=sk-...   # or ANTHROPIC_API_KEY
-python3 server.py                # unmatched questions now go to the AI
+export GEMINI_API_KEY=AIza...    # https://aistudio.google.com/apikey (free tier)
+python3 server.py
 ```
 
-Without a key the companion stays fully offline and answers from the built-in
+Provider selection, in order:
+
+1. `GIRLY_AI_PROVIDER` — `gemini` or `anthropic`, if you want to be explicit
+2. `GEMINI_API_KEY` → Gemini (default `gemini-3.1-flash-lite`)
+3. `ANTHROPIC_API_KEY` → Anthropic (default `claude-sonnet-5`)
+4. `GIRLY_AI_API_KEY` → whichever `GIRLY_AI_PROVIDER` names, else Gemini
+
+The default is Flash-**Lite**, not full Flash. On the free tier the full Flash
+line is heavily 503-saturated — `gemini-2.5-flash` now 404s outright for new keys
+(*"no longer available to new users"*) and every current `*-flash` variant
+measured 0–2 successes out of 3, one taking 27.6s. Flash-Lite answered 3/3 at
+under 2s, and ~4s with the real system prompt and JSON mode. If you have billing
+enabled, raise it with `GIRLY_AI_MODEL=gemini-3.6-flash`.
+
+`GIRLY_AI_MODEL` overrides the model and `GIRLY_AI_API_URL` the endpoint
+(the Gemini URL takes a `{model}` placeholder). Deploying on Render? Set the
+key under the service's **Environment** tab.
+
+The built-in topic bank is not dead weight — it's the fallback, and it's
+load-bearing in three places:
+
+- **Crisis and urgent-care topics** (self-harm, disordered eating, toxic shock
+  syndrome, possible pregnancy) are answered from the bank *before* the AI is
+  consulted, so they stay deterministic, work with no network, and never get
+  improvised.
+- **Offline** — with no key, or when the network is down, the bank answers.
+- **Safety blocks** — Gemini may decline a legitimate sexual-health question.
+  When it does, the request falls through to the bank rather than going silent.
+
+With no key the companion stays fully offline and answers from the built-in
 topics only. With a key, the user's question and minimal cycle context (day
-and phase — never names or logs) are sent to the AI service. `GIRLY_AI_MODEL`
-(default `claude-sonnet-5`) and `GIRLY_AI_API_URL` can override the model and
-endpoint.
+and phase — never names or logs) are sent to the AI service.
 
 ## Demo accounts
 

@@ -3,14 +3,15 @@
 Girly 🌸 — Cycle Companion Service (Python, stdlib only)
 
 A small, dependency-free HTTP service that powers the in-app assistant.
-It answers questions about periods, symptoms, cycle phases, general health,
-and personal hygiene with a warm, body-positive knowledge base, personalized
-with the caller's cycle context supplied by the main backend.
+Questions about health, the body, and personal hygiene go to Gemini Flash
+(or Anthropic, if that's the key you have). The hand-written topic bank below
+is the fallback: crisis and urgent-care answers come from it always, and
+everything else when there's no key or the network is down — so the companion
+keeps working fully offline.
 
-Anything the knowledge base doesn't recognise is sent to an AI service
-(Anthropic Messages API) when a key is configured via GIRLY_AI_API_KEY or
-ANTHROPIC_API_KEY — without a key the companion stays fully offline and
-answers from the built-in topics alone.
+Enable the AI layer with GEMINI_API_KEY (default provider, GIRLY_AI_MODEL
+defaults to gemini-2.5-flash) or ANTHROPIC_API_KEY. GIRLY_AI_PROVIDER forces a
+provider when both keys are present.
 
 Endpoints:
     GET  /health  → liveness probe used by the admin console
@@ -21,10 +22,39 @@ import json
 import os
 import random
 import re
+import time
+import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST, PORT = "127.0.0.1", 3000
+
+
+def load_env_file(paths):
+    """Minimal .env loader — stdlib only, first readable file wins, and a real
+    environment variable always beats the file."""
+    for path in paths:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                lines = fh.readlines()
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            name, _, value = line.partition("=")
+            name = name.strip()
+            if name and name not in os.environ:
+                os.environ[name] = value.strip().strip('"').strip("'")
+        return
+
+
+# Lets a local .env hold the API key without it ever reaching git. Both
+# entry points (server.py and assistant/server.py) import this module, so the
+# file is picked up either way.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+load_env_file([os.path.join(os.path.dirname(_HERE), ".env"), ".env"])
 
 # ---------------------------------------------------------------------------
 # Knowledge base: (keyword patterns, response builder)
@@ -33,14 +63,44 @@ HOST, PORT = "127.0.0.1", 3000
 # ---------------------------------------------------------------------------
 
 KB = []
+PINNED_KB = []
 
 
-def topic(*words):
+def _register(topics, words, fn, guard):
+    pattern = re.compile(r"\b(" + "|".join(re.escape(w) for w in words) + r")\b", re.IGNORECASE)
+    topics.append((pattern, fn, guard))
+    return fn
+
+
+def topic(*words, guard=None):
+    """A knowledge-base answer, reached only when the AI layer is unavailable.
+
+    `guard` is an optional predicate on the raw message. When it returns False
+    the topic is skipped, which is how broad keywords like "hurts" are stopped
+    from swallowing questions about other parts of the body.
+    """
     def deco(fn):
-        pattern = re.compile(r"\b(" + "|".join(re.escape(w) for w in words) + r")\b", re.IGNORECASE)
-        KB.append((pattern, fn))
-        return fn
+        return _register(KB, words, fn, guard)
     return deco
+
+
+def pinned(*words, guard=None):
+    """Like topic(), but matched *before* the AI layer.
+
+    Reserved for safety: crisis and urgent-care answers stay hand-written and
+    deterministic rather than being improvised by a model.
+    """
+    def deco(fn):
+        return _register(PINNED_KB, words, fn, guard)
+    return deco
+
+
+def first_topic(topics, message, ctx):
+    """First topic whose pattern matches and whose guard allows it, else None."""
+    for pattern, builder, guard in topics:
+        if pattern.search(message) and (guard is None or guard(message)):
+            return builder(ctx)
+    return None
 
 
 def phase_intro(ctx):
@@ -58,7 +118,39 @@ def phase_intro(ctx):
     return "In Learn Mode, without cycle dates to go on"
 
 
-@topic("cramp", "cramps", "ache", "aching", "pain", "painful", "hurts")
+# --- guards ----------------------------------------------------------------
+# Broad symptom words ("pain", "hurts", "ache") match a cycle question and a
+# question about an ear equally well. These predicates let the pelvic topics
+# decline a message that is plainly about somewhere else.
+
+# Parts that mean the question is not about the pelvis. "back" is in here on
+# purpose: a bare backache has its own topic below, and only becomes a cycle
+# symptom when the message also says so ("my back hurts with my period").
+ELSEWHERE_RE = re.compile(
+    r"\b(ear|ears|tooth|teeth|toothache|knee|throat|finger|fingers|toe|toes|ankle|wrist|"
+    r"elbow|shoulder|neck|eye|eyes|nose|sinus|jaw|hand|hands|foot|feet|arm|arms|leg|legs|"
+    r"back)\b",
+    re.IGNORECASE,
+)
+CYCLE_RE = re.compile(
+    r"\b(period|periods|menstrual|menstruation|cramp|cramps|uterus|womb|belly|abdomen|"
+    r"abdominal|pelvi\w*|ovulat\w*|pms|down there|vagina\w*)\b",
+    re.IGNORECASE,
+)
+
+
+def pelvic_pain(message):
+    """True unless the message names an unrelated body part — and no cycle
+    context, which always wins."""
+    return not ELSEWHERE_RE.search(message) or bool(CYCLE_RE.search(message))
+
+
+def not_cold_sore(message):
+    """"a cold sore" is not "a cold" — the illness topic must not claim it."""
+    return not re.search(r"\bcold\s+sore", message, re.IGNORECASE)
+
+
+@topic("cramp", "cramps", "ache", "aching", "pain", "painful", "hurts", guard=pelvic_pain)
 def _(ctx):
     return {
         "reply": (
@@ -182,7 +274,7 @@ def _(ctx):
     }
 
 
-@topic("tss", "toxic shock", "tampon too long", "tampon in too long", "left in too long", "forgot my tampon", "forgot to change my tampon")
+@pinned("tss", "toxic shock", "tampon too long", "tampon in too long", "left in too long", "forgot my tampon", "forgot to change my tampon")
 def _(ctx):
     return {
         "reply": (
@@ -345,14 +437,18 @@ def _(ctx):
 
 # ---------------------------------------------------------------------------
 # Knowledge base — general health, menstrual health & personal hygiene.
-# These are checked after the core topics above (so the core topics win
-# conflicts); anything that matches nothing here goes to the AI layer.
+# Reached when there's no API key, or when the AI is unreachable or declines
+# the question. Topics are scanned in order, so the specific ones above win
+# over the broader ones below.
 # ---------------------------------------------------------------------------
 
 # --- wellbeing topics where safety comes first ------------------------------
+# Pinning moves a topic ahead of the AI layer. That's right for unambiguous
+# crisis language, but it also moves it ahead of every topic above — so the
+# ambiguous word in each set stays behind in the ordinary bank, where a
+# neighbouring topic can still claim it first.
 
-@topic("eating disorder", "anorexia", "bulimia", "binge", "purge", "making myself throw up", "restricting food")
-def _(ctx):
+def _disorder_support(ctx):
     return {
         "reply": (
             "Thank you for trusting me with this — it takes courage. Struggles with food and "
@@ -368,8 +464,20 @@ def _(ctx):
     }
 
 
-@topic("depressed", "depression", "hopeless", "self harm", "self-harm", "suicidal", "kill myself", "want to die", "can't go on", "cant go on")
+@pinned("eating disorder", "anorexia", "bulimia", "purge", "purging",
+        "making myself throw up", "restricting food", "starving myself")
 def _(ctx):
+    return _disorder_support(ctx)
+
+
+# "binge" on its own is left unpinned so that the cravings topic below still
+# answers "I binge on chocolate before my period" as the food question it is.
+@topic("binge", "bingeing", "binging")
+def _(ctx):
+    return _disorder_support(ctx)
+
+
+def _crisis_support(ctx):
     return {
         "reply": (
             "I'm really glad you told me. Feeling this heavy is exhausting, and you shouldn't "
@@ -386,9 +494,22 @@ def _(ctx):
     }
 
 
+@pinned("self harm", "self-harm", "suicidal", "kill myself", "want to die",
+        "can't go on", "cant go on", "hopeless")
+def _(ctx):
+    return _crisis_support(ctx)
+
+
+# "depressed" stays unpinned, so the mood topic above keeps answering "I'm sad
+# and depressed about my exams" — only the explicit language is escalated.
+@topic("depressed", "depression")
+def _(ctx):
+    return _crisis_support(ctx)
+
+
 # --- menstrual health ---------------------------------------------------------
 
-@topic("pregnan", "am i pregnant", "could i be pregnant", "unprotected", "plan b", "morning after", "emergency contraception")
+@pinned("pregnan", "am i pregnant", "could i be pregnant", "unprotected", "plan b", "morning after", "emergency contraception")
 def _(ctx):
     return {
         "reply": (
@@ -657,7 +778,7 @@ def _(ctx):
 
 # --- general health ------------------------------------------------------------
 
-@topic("fever", "sick", "flu", "a cold", "cold symptoms", "runny nose", "cough", "coughing", "sore throat", "temperature", "illness")
+@topic("fever", "sick", "flu", "a cold", "cold symptoms", "runny nose", "cough", "coughing", "sore throat", "temperature", "illness", guard=not_cold_sore)
 def _(ctx):
     return {
         "reply": (
@@ -991,8 +1112,32 @@ def _(ctx):
 # --- greetings (last on purpose: a greeting mixed with a real question —
 # "hey, I have cramps" — should still reach the topic above, not this) ------
 
-@topic("hi", "hello", "hey", "heya", "hiya", "good morning", "good afternoon", "good evening", "how are you", "how's it going", "hows it going", "what's up", "whats up")
-def _(ctx):
+GREETING_WORDS = (
+    "hi", "hello", "hey", "heya", "hiya", "good morning", "good afternoon",
+    "good evening", "how are you", "how's it going", "hows it going", "what's up", "whats up",
+)
+GREETING_RE = re.compile(
+    r"\b(" + "|".join(re.escape(w) for w in GREETING_WORDS) + r")\b", re.IGNORECASE
+)
+# Words left over once the greeting itself is stripped — "hello there" is still
+# just a hello.
+GREETING_LEFTOVERS = {"there", "girly", "again", "friend", "everyone"}
+
+
+def is_pure_greeting(message):
+    """True only for a greeting and nothing else.
+
+    A greeting that carries a real question must reach the topics, so this is
+    deliberately strict: strip the greeting words, and if anything substantial
+    remains it isn't a pure greeting.
+    """
+    leftover = GREETING_RE.sub(" ", message or "")
+    leftover = re.sub(r"[^\w]+", " ", leftover).strip().lower()
+    return not leftover or leftover in GREETING_LEFTOVERS
+
+
+@topic(*GREETING_WORDS)
+def greeting_topic(ctx):
     name = (ctx.get("name") or "").split(" ")[0]
     who = f" {name}" if name else ""
     return {
@@ -1003,52 +1148,129 @@ def _(ctx):
     }
 
 
+# Reached only when there is no API key and no topic matches. These still have
+# to be useful — the old "tell me a little more" versions deflected without
+# answering anything, which is the worst thing a health app can do.
 FALLBACK_REPLIES = [
     (
-        "I'm here for you! 🌸 Hormones shift across your cycle, so how you feel day-to-day is often "
-        "your body narrating its own rhythm. Could you tell me a little more — is it about cramps, "
-        "mood, flow, or timing?"
+        "I don't have a ready-made answer for that one, so here's the honest general "
+        "guidance: keep the area clean and dry, drink water, rest when you need to, and "
+        "give your body a day or two to settle. If it hurts, gets worse, or is still "
+        "there after a few days, a pharmacist, school nurse, or doctor is the right next "
+        "step — they can check what I can't. 💜"
     ),
     (
-        "That's a thoughtful question! While I keep learning, the classic gentle advice holds: "
-        "hydrate, rest kindly, and track what you notice. Ask me about cramps, cravings, your "
-        "fertile window, or first-period prep anytime."
+        "That's not something I can answer reliably without a professional looking at it, "
+        "and I'd rather be honest than guess. What almost never hurts in the meantime: "
+        "hydrate, sleep, keep things clean and dry, and don't push through pain. For "
+        "anything persistent or worrying, a pharmacist or school nurse is free, quick, "
+        "and very used to these questions."
     ),
     (
-        "I can help with periods and cycle tracking, general health, and personal hygiene — "
-        "things like cramps, discharge, skincare, sleep, or showering. Could you tell me a "
-        "little more about what you're noticing?"
+        "I'm not able to give you a dependable answer on that one. I'm strongest on cycle "
+        "questions, general health, and personal hygiene — and for anything else, a "
+        "pharmacist, school nurse, or GP is the safest place to ask. If it feels urgent, "
+        "please don't wait."
     ),
 ]
 
 
 # ---------------------------------------------------------------------------
-# Optional AI layer — answers anything the knowledge base above doesn't cover.
-# Enabled by setting GIRLY_AI_API_KEY (or ANTHROPIC_API_KEY). Without a key,
-# the companion stays fully offline and uses the built-in answers only.
+# AI layer — answers anything, with the knowledge base above as the fallback.
+# Enabled by setting GEMINI_API_KEY (Gemini Flash, the default) or
+# ANTHROPIC_API_KEY; GIRLY_AI_PROVIDER forces one when both are present.
+# Without a key the companion stays fully offline and uses the built-in
+# answers only.
 # Note: when enabled, the user's question and minimal cycle context (day and
 # phase, never names or logs) are sent to the configured AI service.
 # ---------------------------------------------------------------------------
 
-AI_API_URL = os.environ.get("GIRLY_AI_API_URL", "https://api.anthropic.com/v1/messages")
-AI_MODEL = os.environ.get("GIRLY_AI_MODEL", "claude-sonnet-5")
 AI_MAX_TOKENS = 700
-AI_TIMEOUT = 20.0
+# The free tier 503s under load and can be slow when it doesn't. One retry
+# after a short pause covers most of that, and 2 x 12s + the pause still lands
+# inside the 30s the main app allows before it gives up on the companion.
+AI_TIMEOUT = 12.0
+AI_ATTEMPTS = 2
+AI_RETRY_DELAY = 0.8
+AI_RETRY_STATUS = {408, 429, 500, 502, 503, 504}
+
+PROVIDERS = {
+    "gemini": {
+        # {model} is substituted from ai_model()
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        # Flash-Lite rather than full Flash: measured 3/3 reliable at ~4s, where
+        # every *-flash variant was 503-saturated on the free tier. Note
+        # gemini-2.5-flash now 404s for new keys ("no longer available").
+        "model": "gemini-3.1-flash-lite",
+        "keys": ("GEMINI_API_KEY", "GIRLY_AI_API_KEY"),
+    },
+    "anthropic": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "model": "claude-sonnet-5",
+        "keys": ("ANTHROPIC_API_KEY", "GIRLY_AI_API_KEY"),
+    },
+}
 
 AI_SYSTEM_PROMPT = (
     "You are the in-app companion for Girly, a friendly menstrual cycle tracker used mainly "
-    "by teens and young women. Answer questions about general health, menstruation, and "
-    "personal hygiene with warm, body-positive, age-appropriate, educational information. "
-    "Never diagnose or prescribe medication. Encourage seeing a doctor, gynecologist, school "
-    "nurse, or trusted adult for severe, persistent, or worrying symptoms, and set "
-    '"doctor": true whenever professional care should be considered. Keep the reply under '
-    "120 words, in simple, friendly language. Respond ONLY with a JSON object: "
-    '{"reply": string, "tips": [up to 3 short practical tips], "doctor": boolean}.'
+    "by teens and young women. Answer ANY question about health, the body, and personal "
+    "hygiene — not only cycle topics. That includes first aid and minor injuries, common "
+    "illnesses and infections, sexual health, contraception and STIs, mental wellbeing, "
+    "skin, hair, teeth, sleep, food, and everyday self-care. Be warm, body-positive, and "
+    "age-appropriate, and be matter-of-fact rather than embarrassed about bodies, sex, and "
+    "hygiene — shame helps no one. Never diagnose, never prescribe or give a medication "
+    "dose, and never tell someone a symptom is harmless. For anything severe, worsening, "
+    "persistent, or possibly an emergency, say plainly that they should see a doctor, "
+    "pharmacist, school nurse, or emergency service and set \"doctor\": true. If a question "
+    "falls outside health and personal hygiene, gently steer back to what you can help "
+    "with. Keep the reply under 120 words, in simple, friendly language. Respond ONLY with "
+    'a JSON object: {"reply": string, "tips": [up to 3 short practical tips], '
+    '"doctor": boolean}.'
 )
+
+# Sexual-health questions about discharge, contraception and STIs are core to
+# this app, but the default filter can refuse them as explicit. Only that one
+# category is relaxed, and only to BLOCK_ONLY_HIGH — every other category keeps
+# the provider default. A blocked question still gets an answer: ask_ai()
+# returns None and the built-in knowledge base takes over.
+GEMINI_SAFETY_SETTINGS = [
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+]
+
+
+def ai_provider():
+    """Which service answers: 'gemini', 'anthropic', or '' when no key is set."""
+    forced = os.environ.get("GIRLY_AI_PROVIDER", "").strip().lower()
+    if forced in PROVIDERS:
+        return forced
+    for name, spec in PROVIDERS.items():
+        if any(os.environ.get(k) for k in spec["keys"]):
+            return name
+    return ""
 
 
 def ai_api_key():
-    return os.environ.get("GIRLY_AI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or ""
+    provider = ai_provider()
+    if not provider:
+        return ""
+    for k in PROVIDERS[provider]["keys"]:
+        if os.environ.get(k):
+            return os.environ[k]
+    return ""
+
+
+def ai_enabled():
+    return bool(ai_api_key())
+
+
+def ai_model():
+    return os.environ.get("GIRLY_AI_MODEL") or PROVIDERS.get(ai_provider(), {}).get("model", "")
+
+
+def ai_api_url():
+    url = os.environ.get("GIRLY_AI_API_URL") or PROVIDERS.get(ai_provider(), {}).get("url", "")
+    return url.format(model=ai_model()) if "{model}" in url else url
+
 
 
 def ai_enabled():
@@ -1083,12 +1305,8 @@ def parse_ai_reply(text):
     return {"reply": text, "tips": [], "doctor": False}
 
 
-def ask_ai(message, ctx):
-    """Ask the configured AI service, or return None if disabled/unreachable."""
-    key = ai_api_key()
-    if not key:
-        return None
-
+def build_prompt(message, ctx):
+    """The user's question, prefixed with the little cycle context we have."""
     context_bits = []
     if isinstance(ctx.get("cycle_day"), int) and ctx.get("phase"):
         context_bits.append(
@@ -1096,36 +1314,91 @@ def ask_ai(message, ctx):
         )
     elif ctx.get("mode") == "learn":
         context_bits.append("Cycle context: the user has not logged any periods (Learn Mode).")
-    prompt = (" ".join(context_bits) + "\n\nQuestion: " + message).strip()
+    return (" ".join(context_bits) + "\n\nQuestion: " + message).strip()
 
-    payload = json.dumps(
+
+def _post_json(url, payload, headers):
+    """One POST, parsed as JSON. Raises on any failure — ask_ai() catches."""
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", **headers},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=AI_TIMEOUT) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _ask_gemini(key, prompt):
+    data = _post_json(
+        ai_api_url(),
         {
-            "model": AI_MODEL,
+            "systemInstruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                # Pairs with the tolerant parse_ai_reply() below.
+                "responseMimeType": "application/json",
+                "maxOutputTokens": AI_MAX_TOKENS,
+            },
+            "safetySettings": GEMINI_SAFETY_SETTINGS,
+        },
+        {"x-goog-api-key": key},
+    )
+    # A safety block comes back with no candidates — report "no answer" so the
+    # caller falls through to the built-in topics instead of going silent.
+    candidates = data.get("candidates") or []
+    if not candidates:
+        return None
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+    return parse_ai_reply(text)
+
+
+def _ask_anthropic(key, prompt):
+    data = _post_json(
+        ai_api_url(),
+        {
+            "model": ai_model(),
             "max_tokens": AI_MAX_TOKENS,
             "system": AI_SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        AI_API_URL,
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": key,
-            "anthropic-version": "2023-06-01",
         },
-        method="POST",
+        {"x-api-key": key, "anthropic-version": "2023-06-01"},
     )
-    try:
-        with urllib.request.urlopen(req, timeout=AI_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except (OSError, ValueError):
-        return None
-
     text = "".join(
         block.get("text", "") for block in data.get("content", []) if isinstance(block, dict)
     )
     return parse_ai_reply(text)
+
+
+_ASKERS = {"gemini": _ask_gemini, "anthropic": _ask_anthropic}
+
+
+def ask_ai(message, ctx):
+    """Ask the configured AI service, or return None if disabled/unreachable.
+
+    Returning None rather than raising is the whole contract: the caller falls
+    back to the built-in topics, so a missing key, a dead network, a timeout, a
+    malformed body, or a safety block all degrade to a real answer.
+    """
+    key = ai_api_key()
+    asker = _ASKERS.get(ai_provider())
+    if not key or asker is None:
+        return None
+    prompt = build_prompt(message, ctx)
+
+    for attempt in range(AI_ATTEMPTS):
+        try:
+            return asker(key, prompt)
+        except urllib.error.HTTPError as err:
+            # Overload and rate limits are worth one more try; a 404 (model
+            # retired) or any other status is not.
+            if err.code not in AI_RETRY_STATUS or attempt == AI_ATTEMPTS - 1:
+                return None
+        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            return None
+        time.sleep(AI_RETRY_DELAY)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -1159,6 +1432,8 @@ class Handler(BaseHTTPRequestHandler):
                 "version": "1.1",
                 "port": PORT,
                 "ai_enabled": ai_enabled(),
+                "ai_provider": ai_provider(),
+                "ai_model": ai_model(),
             })
         else:
             self._send_json(404, {"error": "not found"})
@@ -1188,16 +1463,30 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def respond(message, ctx):
-    for pattern, builder in KB:
-        if pattern.search(message):
-            result = builder(ctx)
-            return decorate(result, ctx)
+    # 1. A plain "hi" is answered locally — never worth an API call. Checked
+    #    separately because the greeting topic sits last in KB (so that
+    #    "hey, how do I soothe cramps?" still reaches the cramps topic).
+    if is_pure_greeting(message):
+        return decorate(greeting_topic(ctx), ctx)
 
-    # anything the knowledge base doesn't cover goes to the AI layer
-    # (only when a key is configured), then to the friendly fallbacks
+    # 2. Crisis and urgent-care topics keep their hand-written, escalation-first
+    #    answers. A model improvising on a self-harm disclosure is a risk not
+    #    worth taking, and these must work with no network.
+    pinned_hit = first_topic(PINNED_KB, message, ctx)
+    if pinned_hit is not None:
+        return decorate(pinned_hit, ctx)
+
+    # 3. Everything else goes to the AI — this is the normal path, and the one
+    #    that can answer questions no keyword list anticipated.
     ai = ask_ai(message, ctx)
     if ai:
         return decorate(ai, ctx)
+
+    # 4. No key, or the AI was unreachable or blocked: fall back to the
+    #    built-in topics. This is what makes the app work offline.
+    local = first_topic(KB, message, ctx)
+    if local is not None:
+        return decorate(local, ctx)
 
     result = {"reply": random.choice(FALLBACK_REPLIES), "tips": [], "doctor": False}
     return decorate(result, ctx)

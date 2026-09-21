@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>Girly 🌸 · Profile</title>
+  <title>Girly  - Profile</title>
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -20,7 +20,7 @@
       <img id="avatar-img" alt="Profile picture" class="hidden"/>
       <span id="avatar-initials" class="t-headline-md" style="font-weight:700">—</span>
       <span class="avatar-edit" aria-hidden="true">
-        <span class="material-symbols-outlined" style="font-size:18px">photo_camera</span>
+        <span class="material-symbols-outlined" id="avatar-edit-icon" style="font-size:18px">add_a_photo</span>
       </span>
     </div>
     <input type="file" id="avatar-input" accept="image/png, image/jpeg, image/gif, image/webp" class="hidden"/>
@@ -36,16 +36,12 @@
     </div>
     <p class="t-body-sm muted" id="profile-since" style="margin:0"></p>
 
-    <div class="grid-2" style="margin-top:var(--sp-sm)">
-      <button class="btn btn-primary" id="btn-change-photo" type="button">
-        <span class="material-symbols-outlined" style="font-size:18px">photo_camera</span>
-        <span>Change Photo</span>
-      </button>
-      <button class="btn btn-soft" id="btn-remove-photo" type="button">
-        <span class="material-symbols-outlined" style="font-size:18px">delete</span>
-        <span>Remove Photo</span>
-      </button>
-    </div>
+    <!-- The avatar is the control for adding/changing a picture; this only
+         appears once there is one to remove. -->
+    <button class="btn btn-quiet hidden" id="btn-remove-photo" type="button">
+      <span class="material-symbols-outlined" style="font-size:17px">delete</span>
+      <span>Remove Photo</span>
+    </button>
   </section>
 
   <!-- Change password -->

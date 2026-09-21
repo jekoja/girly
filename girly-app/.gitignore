@@ -1,0 +1,8 @@
+# Secrets — never commit. The companion reads .env at startup.
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]

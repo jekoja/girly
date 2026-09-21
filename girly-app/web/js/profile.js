@@ -11,6 +11,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   function renderAvatar() {
     const img = document.getElementById("avatar-img");
     const initials = document.getElementById("avatar-initials");
+    // Nothing to remove until a picture is set — the avatar itself is the
+    // control for adding or changing one, so its label follows suit.
+    document.getElementById("btn-remove-photo").classList.toggle("hidden", !user.avatar);
+    document.getElementById("profile-avatar").setAttribute(
+      "aria-label", user.avatar ? "Change profile picture" : "Add a profile picture");
+    document.getElementById("avatar-edit-icon").textContent =
+      user.avatar ? "photo_camera" : "add_a_photo";
     if (user.avatar) {
       img.src = user.avatar;
       img.classList.remove("hidden");
@@ -62,7 +69,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     fileInput.value = "";
     fileInput.click();
   }
-  document.getElementById("btn-change-photo").addEventListener("click", pickPicture);
   document.getElementById("profile-avatar").addEventListener("click", pickPicture);
   document.getElementById("profile-avatar").addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickPicture(); }

@@ -1,13 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" role="img" aria-label="Girly">
   <defs>
-    <linearGradient id="girlyGrad" x1="10" y1="10" x2="90" y2="90" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#f472b6"/>
-      <stop offset="50%" stop-color="#d15b78"/>
-      <stop offset="100%" stop-color="#8b5cf6"/>
+    <linearGradient id="girlyHeart" x1="24" y1="16" x2="78" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a855c4"/>
+      <stop offset="100%" stop-color="#7a2c92"/>
     </linearGradient>
+    <clipPath id="girlyHeartClip">
+      <path d="M50 88C50 88 10 60 10 36C10 22 21 13 33 13C41 13 47 17 50 23C53 17 59 13 67 13C79 13 90 22 90 36C90 60 50 88 50 88Z"/>
+    </clipPath>
   </defs>
-  <circle cx="50" cy="50" r="42" fill="url(#girlyGrad)"/>
-  <path d="M50 28 C42 18, 28 26, 32 38 C35 48, 50 64, 50 68 C50 64, 65 48, 68 38 C72 26, 58 18, 50 28 Z" fill="#ffffff" opacity="0.95"/>
-  <circle cx="50" cy="42" r="4.5" fill="#f472b6"/>
-  <path d="M47 73 C48 76, 52 76, 53 73" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- blush disc — keeps the mark a self-contained badge at favicon size -->
+  <circle cx="50" cy="50" r="50" fill="#ffd9df"/>
+
+  <!-- red arc: a full ring bar a small gap at the right, so both ends meet
+       at the right hand side -->
+  <path d="M86.25 33.1 A40 40 0 1 0 86.25 66.9" fill="none" stroke="#d92d4a"
+        stroke-width="5.5" stroke-linecap="round"/>
+
+  <!-- glossy purple heart -->
+  <g transform="translate(50 50) scale(0.66) translate(-50 -50.5)">
+    <g clip-path="url(#girlyHeartClip)">
+      <path d="M50 88C50 88 10 60 10 36C10 22 21 13 33 13C41 13 47 17 50 23C53 17 59 13 67 13C79 13 90 22 90 36C90 60 50 88 50 88Z"
+            fill="url(#girlyHeart)"/>
+      <!-- sheen: broad on the upper-left lobe, a smaller catch on the right -->
+      <ellipse cx="31" cy="28" rx="13" ry="7.5" fill="#ffffff" opacity="0.25"
+               transform="rotate(-38 31 28)"/>
+      <ellipse cx="68" cy="24" rx="8" ry="4" fill="#ffffff" opacity="0.18"
+               transform="rotate(28 68 24)"/>
+    </g>
+  </g>
 </svg>

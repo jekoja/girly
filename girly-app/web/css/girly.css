@@ -297,6 +297,20 @@ input, select {
 }
 .btn-danger-soft:hover { opacity: 0.9; }
 
+/* A quiet, text-only action: no fill at rest, so it never competes with the
+   primary one. Hovering hints the destructive blush. */
+.btn-quiet {
+  min-height: 40px;
+  padding: 0.4rem 0.9rem;
+  font-size: 13px;
+  background: transparent;
+  color: var(--on-surface-variant);
+}
+.btn-quiet:hover {
+  background: color-mix(in srgb, var(--error-container) 45%, transparent);
+  color: var(--on-error-container);
+}
+
 .btn-block { width: 100%; }
 
 .icon-btn {
@@ -705,8 +719,11 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--on-surface);
 }
 .bubble.user-bubble {
-  background: var(--primary);
-  color: var(--on-primary);
+  /* Faded lilac rather than a saturated fill — the user's own words stay
+     quiet so the assistant's reply carries the emphasis. The token pair
+     flips together in night mode, so contrast holds in both themes. */
+  background: var(--secondary-container);
+  color: var(--on-secondary-fixed-variant);
   border-top-right-radius: 0;
 }
 .bubble-time { font-size: 11px; color: var(--outline); padding: 0 4px; }
