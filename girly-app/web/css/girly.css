@@ -726,6 +726,10 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--on-secondary-fixed-variant);
   border-top-right-radius: 0;
 }
+/* Shift+Enter puts a real newline in the ask bar; show it rather than letting
+   the paragraph collapse it into a space. Scoped to the user's own bubble so
+   the assistant's generated HTML keeps normal whitespace handling. */
+.bubble.user-bubble p { white-space: pre-wrap; }
 .bubble-time { font-size: 11px; color: var(--outline); padding: 0 4px; }
 .bot-avatar {
   width: 32px; height: 32px;
@@ -764,17 +768,31 @@ input[type="range"]::-webkit-slider-thumb {
   padding: var(--sp-sm);
   box-shadow: var(--shadow-float);
 }
-.chat-input-row { display: flex; align-items: center; gap: var(--sp-xs); }
+.chat-input-row { display: flex; align-items: flex-end; gap: var(--sp-xs); }
 .chat-input {
   flex: 1;
+  min-width: 0;
   background: var(--surface-container-low);
   border: none;
   outline: none;
-  border-radius: var(--r-full);
+  /* --r-xl (24px) clamps to half the box height when the box is short, so a
+     single line still reads as a pill; once the box grows it settles into a
+     soft rounded rectangle instead of a blob. */
+  border-radius: var(--r-xl);
   padding: 0.625rem 1rem;
   font-size: 14px;
+  line-height: 20px;
   color: var(--on-surface);
   transition: background 0.2s ease;
+  /* A textarea rather than an input: a long question wraps onto the next line
+     instead of scrolling off the edge of the field. Height is set by
+     autoGrowInput() in assistant.js — these are just the guard rails. A
+     textarea inherits neither font nor its own resize handle by default. */
+  font-family: inherit;
+  resize: none;
+  display: block;
+  max-height: 120px;  /* 5 lines — keep MAX_INPUT_LINES in assistant.js in step */
+  overflow-y: hidden;
 }
 .chat-input:focus { background: var(--surface-container); }
 .send-btn {

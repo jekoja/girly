@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- Temporary harness: signs in same-origin (Chrome can't see a cookie set
+     from Python), loads the real assistant page in an iframe, and types into
+     the ask bar so its growth can be measured and photographed.
+     Deleted after the run. -->
+<meta charset="utf-8">
+<title>ask-bar probe</title>
+<style>html,body{margin:0;height:100%}iframe{width:430px;height:900px;border:0;display:block}
+#diag{position:fixed;right:0;top:0;font:11px monospace;background:#fff;padding:4px;white-space:pre}</style>
+<iframe id="f"></iframe>
+<div id="diag">…</div>
+<script>
+const LONG = "hey, I've been getting really bad cramps for the last three days and I'm not sure if I should be worried or if this is normal for my cycle";
+
+(async () => {
+  await fetch("/api/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({email: "maya@example.com", password: "password123"}),
+  });
+
+  const f = document.getElementById("f");
+  await new Promise((r) => { f.onload = r; f.src = "/assistant.html"; });
+  const d = f.contentDocument, w = f.contentWindow;
+  await new Promise((r) => setTimeout(r, 600));   // let the page settle
+
+  const el = d.getElementById("chat-input");
+  const h0 = el.offsetHeight;
+  const rows = [];
+
+  // type it one character at a time, as a person would
+  for (let i = 1; i <= LONG.length; i++) {
+    el.value = LONG.slice(0, i);
+    el.dispatchEvent(new w.Event("input", { bubbles: true }));
+    if (i === 20 || i === 60 || i === 110 || i === LONG.length) {
+      rows.push(`chars=${String(i).padStart(3)}  h=${el.offsetHeight}px  scrollH=${el.scrollHeight}  lines~${Math.round((el.scrollHeight - 20) / 20)}`);
+    }
+  }
+
+  const cs = w.getComputedStyle(el);
+  rows.push(`tag=${el.tagName}  white-space=${cs.whiteSpace}  resize=${cs.resize}  overflowY=${cs.overflowY}`);
+  rows.push(`overflows field width? ${el.scrollWidth > el.clientWidth ? "YES (bad)" : "no (wraps)"}`);
+  rows.push(`row bottom-aligned buttons: ${w.getComputedStyle(d.querySelector(".chat-input-row")).alignItems}`);
+  document.getElementById("diag").textContent = `h0(empty)=${h0}px\n` + rows.join("\n");
+})();
+</script>

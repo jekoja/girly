@@ -40,10 +40,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderPromptChips();
   greet(c);
 
-  document.getElementById("chat-form").addEventListener("submit", (e) => {
+  const chatForm = document.getElementById("chat-form");
+  const chatInput = document.getElementById("chat-input");
+
+  chatForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    sendMessage(document.getElementById("chat-input").value.trim());
+    sendMessage(chatInput.value.trim());
   });
+
+  // The ask bar is a textarea so a long question wraps onto the next line
+  // instead of running off the edge of the field. Enter still sends, the way
+  // it did when this was a single-line input; Shift+Enter now adds a line.
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      chatForm.requestSubmit();
+    }
+  });
+  chatInput.addEventListener("input", () => autoGrowInput(chatInput));
+  autoGrowInput(chatInput);
 
   // ---- attachments (photos & documents) ----
   const attachInput = document.getElementById("attachment-input");
@@ -229,6 +244,22 @@ function thinkingBubble() {
   scrollStream();
 }
 
+const MAX_INPUT_LINES = 5;  // keep the max-height in girly.css in step
+
+// Grow the ask bar to fit what's been typed, then scroll inside it past
+// MAX_INPUT_LINES so the dock never eats the conversation.
+function autoGrowInput(el) {
+  const cs = getComputedStyle(el);
+  const line = parseFloat(cs.lineHeight) || 20;
+  const padding = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const max = line * MAX_INPUT_LINES + padding;
+
+  el.style.height = "auto";
+  const needed = el.scrollHeight;
+  el.style.height = `${Math.min(needed, max)}px`;
+  el.style.overflowY = needed > max ? "auto" : "hidden";
+}
+
 async function sendMessage(query) {
   const input = document.getElementById("chat-input");
   const attachments = pendingAttachments.splice(0);
@@ -236,6 +267,7 @@ async function sendMessage(query) {
   if (!query && !attachments.length) return;
   const message = query || "Sent an attachment";
   input.value = "";
+  autoGrowInput(input);
   userBubble(query, attachments);
   thinkingBubble();
 
