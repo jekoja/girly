@@ -47,6 +47,24 @@ def public_user(u):
     }
 
 
+# Who may open the admin console. There is no account-creation path for admins —
+# the role follows the address, so an ordinary signup with this email becomes the
+# operator. Overridable so a fork doesn't have to edit code.
+DEFAULT_ADMIN_EMAIL = "edachejohnekoja@gmail.com"
+
+
+def admin_emails():
+    """The admin addresses, lowercased. Comma-separated, so a fork can name several."""
+    raw = os.environ.get("GIRLY_ADMIN_EMAIL", DEFAULT_ADMIN_EMAIL)
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def role_for_email(email):
+    """The role a signup with this address gets. Note the app does not verify
+    email addresses, so this is first-come-first-served."""
+    return "admin" if (email or "").strip().lower() in admin_emails() else "user"
+
+
 # data:image/png;base64,…. — the profile picture is stored inline in the user
 # record (the frontend resizes uploads to a 256px JPEG before sending).
 AVATAR_DATA_URL = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$")
@@ -145,7 +163,7 @@ class App:
             "dob": body.get("dob", ""),
             "bio_sex": body.get("bio_sex", ""),
             "mode": "learn",
-            "role": "user",
+            "role": role_for_email(email),
             "period_length": body.get("period_length") or 5,
             "period_starts": [],
             "logs": [],
@@ -169,6 +187,19 @@ class App:
             body.get("password") or "", u.get("salt", ""), u.get("password_hash", "")
         ):
             raise ApiError(401, "incorrect email or password")
+
+        # The address is what grants the console, so signing in also repairs the
+        # stored role: an account registered before this rule existed is promoted,
+        # and one whose address has since been dropped from GIRLY_ADMIN_EMAIL is
+        # demoted. Either way the env var stays the source of truth.
+        want = role_for_email(u.get("email", ""))
+        if want != u.get("role"):
+
+            def fn(x):
+                x["role"] = want
+
+            self.store.update_user(u["id"], fn)
+
         cookie = self.set_session(u["id"])
         self.store.log_audit(u["email"], "login", "Session opened")
         return 200, public_user(u), [("Set-Cookie", cookie)]

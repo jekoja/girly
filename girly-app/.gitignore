@@ -6,3 +6,11 @@
 # Python
 __pycache__/
 *.py[cod]
+
+# Runtime state. girly.json holds every account's password hash and salt,
+# cycle logs and companion chats; attachments/ holds whatever members upload.
+# It is seeded on first run, so there is nothing here worth committing.
+# "data/*" rather than "data/" so the template below can still be re-included —
+# git cannot un-ignore a file inside an ignored directory.
+data/*
+!data/smtp.example.json

@@ -8,13 +8,32 @@ data/girly.json keeps working unchanged.
 import json
 import os
 import threading
+import time
 from datetime import date, datetime, timedelta, timezone
 
+import remote
 from auth import hash_password, random_token
 from cycle import today_str
 
 AUDIT_LIMIT = 100
 CHAT_LIMIT = 100  # companion turns kept per user, newest wins
+
+# How long the mirror worker waits for a burst of saves to settle before pushing
+# one combined copy, and how many times it retries a failed push. One request can
+# save three times over (register: add_user + log_audit + create_session), so
+# coalescing is what keeps this inside a free tier's command allowance.
+REMOTE_FLUSH_DELAY = 1.5
+REMOTE_RETRIES = 3
+
+
+def _read_local(path):
+    """The on-disk store, or None if there isn't a usable one."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def day_log(date, flow="", moods=None, symptoms=None, note=""):
@@ -51,20 +70,41 @@ class Store:
         self.sessions = []
         self.audit = []
         self.next_id = 1
+        # Remote mirroring. `_push_allowed` starts False and is only ever set by a
+        # boot pull that actually succeeded — see load().
+        self._push_allowed = False
+        self._dirty = threading.Event()
+        self._sync_lock = threading.Lock()
+        self._worker = None
 
     # ---- Persistence ----
 
     @classmethod
     def load(cls, path):
         s = cls(path)
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+        data = None
+        adopted = False
+
+        if remote.configured():
+            # The remote copy is the durable one; the local file is a per-container
+            # cache that Render throws away. Read the remote first, and record
+            # whether that read *worked* — a failure here must not be mistaken for
+            # "nothing stored", or this boot's seed would overwrite a good copy
+            # that was merely unreachable.
+            data, ok = remote.pull()
+            s._push_allowed = ok
+            adopted = bool(data and data.get("users"))
+            if not adopted:
+                data = None
+
+        if data is None:
+            data = _read_local(path)
+
+        if data:
             s.users = data.get("users", [])
             s.sessions = data.get("sessions", [])
             s.audit = data.get("audit", [])
-        except (OSError, json.JSONDecodeError):
-            pass
+
         for u in s.users:
             try:
                 s.next_id = max(s.next_id, int(u.get("id", 0)) + 1)
@@ -73,9 +113,19 @@ class Store:
         if not s.users:
             s._seed()
             s.save()
+        elif adopted:
+            s._write_local()  # refresh the cache from the durable copy
+
+        if remote.configured():
+            s._start_sync()
         return s
 
     def save(self):
+        self._write_local()
+        if self._push_allowed:
+            self._dirty.set()
+
+    def _write_local(self):
         data = {"users": self.users, "sessions": self.sessions, "audit": self.audit}
         tmp = self.path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -83,6 +133,43 @@ class Store:
             f.write("\n")
         os.chmod(tmp, 0o600)
         os.replace(tmp, self.path)
+
+    # ---- Remote mirror ----
+    #
+    # Pushing has to happen off the request thread. Every mutating method below
+    # calls save() *while holding self.mu*, so a network call inside save() would
+    # hold the app's only lock across a ten-second timeout and freeze everything.
+    # One worker thread, fed by an Event, keeps pushes off the lock and serialises
+    # them so the newest copy always lands last.
+
+    def _start_sync(self):
+        with self._sync_lock:
+            if self._worker is None:
+                self._worker = threading.Thread(
+                    target=self._sync_loop, daemon=True, name="girly-remote"
+                )
+                self._worker.start()
+
+    def _snapshot(self):
+        """Serialise under the lock. Handing the worker live lists would let a
+        concurrent write mutate them mid-encode."""
+        with self.mu:
+            return json.dumps(
+                {"users": self.users, "sessions": self.sessions, "audit": self.audit},
+                ensure_ascii=False,
+            )
+
+    def _sync_loop(self):
+        while True:
+            self._dirty.wait()
+            time.sleep(REMOTE_FLUSH_DELAY)  # let a burst collapse into one push
+            self._dirty.clear()
+            for attempt in range(REMOTE_RETRIES):
+                if remote.push(self._snapshot()):
+                    break
+                time.sleep(2**attempt)
+            else:
+                print("[girly] could not mirror the store to the remote copy")
 
     # ---- Mutations (all lock internally) ----
 
@@ -284,20 +371,20 @@ class Store:
             [day_log(d(19), "light")],
         )
 
-        admin = new_user(
-            "Root Ops", "admin@girly.app", "admin123", "1990-01-01",
-            "prefer_not_to_say", "tracking", "admin", 5,
-        )
-
-        self.users = [maya, chloe, sarah, elena, admin]
+        # No seeded operator on purpose. There used to be one — admin@girly.app
+        # with a password printed in the README — which meant anyone who found
+        # the repo could sign in and reset or delete any account. The admin role
+        # now follows the address in GIRLY_ADMIN_EMAIL (see handlers.py), so the
+        # console starts empty until that account registers.
+        self.users = [maya, chloe, sarah, elena]
         for i, u in enumerate(self.users):
             u["id"] = str(i + 1)
-        self.next_id = 6
+        self.next_id = 5
         self.audit = [
             {
                 "time": _now_rfc3339(),
                 "actor": "system",
                 "action": "seed",
-                "detail": "Demo member directory initialised with 4 accounts + root operator.",
+                "detail": "Demo member directory initialised with 4 accounts.",
             }
         ]

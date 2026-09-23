@@ -327,11 +327,13 @@ input, select {
 .icon-btn:active { transform: scale(0.92); }
 
 /* Dictation in progress. The ring pulsing outward is what says "listening" —
-   the icon swap to a stop square is easy to miss at this size. Colour only, not
-   background: the chat-row buttons set that inline, and an inline style beats a
-   class rule without an !important. */
-.icon-btn.recording {
-  color: var(--on-error-container);
+   the icon swap to a stop square is easy to miss at this size. The :hover is
+   spelled out because .send-btn:hover carries the same specificity as
+   .send-btn.recording and would otherwise win on a hover while recording. */
+.send-btn.recording,
+.send-btn.recording:hover {
+  background: var(--error);
+  color: var(--on-error);
   animation: mic-live 1.6s ease-out infinite;
 }
 @keyframes mic-live {
@@ -340,7 +342,7 @@ input, select {
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .icon-btn.recording { animation: none; }
+  .send-btn.recording { animation: none; }
 }
 
 /* ---- Pills / badges ---------------------------------------------------------- */

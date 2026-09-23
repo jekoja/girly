@@ -3,7 +3,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const me = await Girly.requireAuth();
   if (!me) return;
-  Girly.mountChrome({ active: "learn", name: me.user.name, avatar: me.user.avatar });
+  Girly.mountChrome({ active: "learn", name: me.user.name, avatar: me.user.avatar, role: me.user.role });
 
   // "My period has started" → switch to tracking mode
   document.getElementById("btn-period-arrived").addEventListener("click", async () => {

@@ -76,7 +76,10 @@ and phase — never names or logs) are sent to the AI service.
 |---|---|---|
 | `maya@example.com` | `password123` | Tracking mode, 3 cycles of history |
 | `chloe.v@example.com` | `password123` | Learn mode (no period yet) |
-| `admin@girly.app` | `admin123` | Root operator — admin console |
+
+The admin console has no demo login. The `admin` role follows the address in
+`GIRLY_ADMIN_EMAIL` (default `edachejohnekoja@gmail.com`), so registering that
+address is what creates the operator account.
 
 ## What's inside
 
@@ -84,6 +87,7 @@ and phase — never names or logs) are sent to the AI service.
 girly-app/
 ├── server.py             # entrypoint: routing + static serving + companion thread
 ├── store.py              # JSON persistence, models, demo seed
+├── remote.py             # optional off-box copy of the store (see below)
 ├── auth.py               # PBKDF2-SHA256 password hashing, session tokens
 ├── handlers.py           # REST API (auth, logs, predictions, admin, chat proxy)
 ├── cycle.py              # cycle-day / phase / fertile-window prediction math
@@ -116,11 +120,34 @@ girly-app/
 - **Ovulation** ≈ 14 days before the projected next period; the **fertile
   window** spans the 5 days before that plus ovulation day
 
-## Privacy
+## Where the data lives
 
-All data lives in a single local JSON file (`data/girly.json`). Passwords are
-hashed with PBKDF2-SHA256 (12,000 iterations). Sessions are HttpOnly cookies.
-Delete the data file + restart to reset everything.
+Accounts, cycle logs and companion chats live in one JSON store — locally that is
+`data/girly.json`. On a host that throws its filesystem away after every deploy,
+restart and idle spin-down (Render's free plan, for instance) that file does not
+survive, and **every registered account is erased**: the next sign-in fails with
+"incorrect email or password" because the account is gone, not because the
+password is wrong.
+
+Set these two to keep the durable copy in a hosted key-value store instead:
+
+| Variable | |
+|---|---|
+| `GIRLY_REMOTE_URL` | REST endpoint of an [Upstash](https://upstash.com) Redis database |
+| `GIRLY_REMOTE_TOKEN` | that database's token |
+
+The store is restored from it at boot and mirrored to it after each change —
+coalesced, so a burst of writes costs one request rather than one per write. A
+push that fails never fails the user's request, and if the boot read fails the app
+keeps working locally but **refuses to mirror**, so a seed can't land on top of a
+copy it simply couldn't reach. With both variables unset nothing leaves the
+machine, which is how local development runs.
+
+Uploaded attachments are *not* mirrored — they stay on the local disk and are lost
+with it.
+
+Passwords are hashed with PBKDF2-SHA256 (12,000 iterations). Sessions are HttpOnly
+cookies. Delete the data file + restart to reset everything.
 
 *Girly gives estimates based on learned cycle patterns and is not medical
 advice.*

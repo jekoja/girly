@@ -3,7 +3,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const me = await Girly.requireAuth();
   if (!me) return;
-  Girly.mountChrome({ active: "profile", name: me.user.name, avatar: me.user.avatar });
+  Girly.mountChrome({ active: "profile", name: me.user.name, avatar: me.user.avatar, role: me.user.role });
 
   const user = me.user;
 
@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       user.avatar = res.avatar;
       renderAvatar();
-      Girly.mountChrome({ active: "profile", name: user.name, avatar: user.avatar });
+      Girly.mountChrome({ active: "profile", name: user.name, avatar: user.avatar, role: user.role });
       Girly.toast("Profile picture updated 💜", "favorite");
     } catch (e) {
       Girly.toast(e.message, "error");
@@ -100,7 +100,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       user.avatar = "";
       renderAvatar();
-      Girly.mountChrome({ active: "profile", name: user.name, avatar: "" });
+      Girly.mountChrome({ active: "profile", name: user.name, avatar: "", role: user.role });
       Girly.toast("Profile picture removed");
     } catch (e) {
       Girly.toast(e.message, "error");

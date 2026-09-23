@@ -88,7 +88,7 @@ const Girly = {
   },
 
   /* ---- Shared chrome (header + bottom nav) ---- */
-  mountChrome({ active, name = "", avatar = "", showLearn = true }) {
+  mountChrome({ active, name = "", avatar = "", showLearn = true, role = "" }) {
     // header
     const header = document.createElement("header");
     header.className = "app-header";
@@ -120,12 +120,16 @@ const Girly = {
     // bottom nav
     const nav = document.createElement("nav");
     nav.className = "bottom-nav";
+    // The admin tab is only offered to admins — everyone else would just be
+    // bounced by the page's own guard, so there's no reason to show it.
     const items = [
       { id: "profile", icon: "person", label: "Profile", href: "profile.html" },
       { id: "tracker", icon: "calendar_today", label: "Tracker", href: "tracker.html" },
       { id: "learn", icon: "school", label: "Learn", href: "learn.html" },
       { id: "assistant", icon: "auto_awesome", label: "Assistant", href: "assistant.html" },
-      { id: "admin", icon: "shield_person", label: "Admin", href: "admin.html" },
+      ...(role === "admin"
+        ? [{ id: "admin", icon: "shield_person", label: "Admin", href: "admin.html" }]
+        : []),
     ];
     nav.innerHTML = `<div class="bottom-nav-inner">${items.map((it) => `
       <a class="nav-item ${it.id === active ? "active" : ""}" href="${it.href}" aria-current="${it.id === active ? "page" : "false"}">

@@ -8,7 +8,7 @@ let state = { data: null, monthOffset: 0, selectedFlow: "" };
 document.addEventListener("DOMContentLoaded", async () => {
   const me = await Girly.requireAuth();
   if (!me) return;
-  Girly.mountChrome({ active: "tracker", name: me.user.name, avatar: me.user.avatar });
+  Girly.mountChrome({ active: "tracker", name: me.user.name, avatar: me.user.avatar, role: me.user.role });
 
   buildChips();
   bindSheets();

@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   document.getElementById("admin-email").textContent = me.user.email;
-  Girly.mountChrome({ active: "admin", name: me.user.name, avatar: me.user.avatar, showLearn: false });
+  Girly.mountChrome({ active: "admin", name: me.user.name, avatar: me.user.avatar, showLearn: false, role: me.user.role });
 
   document.getElementById("admin-theme").addEventListener("click", () => {
     Girly.toast(Girly.toggleTheme() ? "Dark mode enabled" : "Light mode restored", "dark_mode");

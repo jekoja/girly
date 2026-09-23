@@ -7,7 +7,7 @@ let ctxInfo = { name: "there", cycle_day: null, phase_label: "" };
 document.addEventListener("DOMContentLoaded", async () => {
   const me = await Girly.requireAuth();
   if (!me) return;
-  Girly.mountChrome({ active: "assistant", name: me.user.name, avatar: me.user.avatar });
+  Girly.mountChrome({ active: "assistant", name: me.user.name, avatar: me.user.avatar, role: me.user.role });
 
   ctxInfo.name = me.user.name.split(" ")[0];
   const c = me.cycle;
@@ -91,6 +91,10 @@ function setupDictation(input) {
   if (!SpeechRecognition) return;  // stays hidden — Firefox has no speech engine
 
   const icon = document.getElementById("btn-mic-icon");
+  // With a speech engine available this button takes over the send button's
+  // spot, so the row keeps one round control instead of two.
+  document.getElementById("send-button").classList.add("hidden");
+
   const recog = new SpeechRecognition();
   recog.interimResults = true;   // show words as they're recognised, not after
   recog.continuous = false;      // one question per tap
@@ -105,14 +109,34 @@ function setupDictation(input) {
   const paint = (text) => {
     input.value = text;
     autoGrowInput(input);
+    syncButton();
   };
+
+  // In the field, or with something typed, the same button means send.
+  const wantsSend = () =>
+    document.activeElement === input || input.value.trim() !== "";
+
+  // While dictating it is always the stop square. The transcript lands in the
+  // field, which would otherwise satisfy wantsSend() and swap the stop button
+  // out from under the user mid-sentence.
+  function syncButton() {
+    if (recording) {
+      icon.textContent = "stop";
+      btn.title = "Stop dictating";
+      btn.setAttribute("aria-label", "Stop dictating");
+      return;
+    }
+    const send = wantsSend();
+    icon.textContent = send ? "send" : "mic";
+    btn.title = send ? "Send message" : "Dictate your question";
+    btn.setAttribute("aria-label", send ? "Send message" : "Dictate your question");
+  }
 
   const setRecording = (on) => {
     recording = on;
     btn.classList.toggle("recording", on);
     btn.setAttribute("aria-pressed", String(on));
-    icon.textContent = on ? "stop" : "mic";
-    btn.title = on ? "Stop dictating" : "Dictate your question";
+    syncButton();
   };
 
   recog.onresult = (e) => {
@@ -145,9 +169,22 @@ function setupDictation(input) {
     if (recording) recog.stop();
   };
 
+  // Pressing the button must not take focus off the field: the textarea would
+  // blur first, the button would flip back to a mic, and a tap meant to send
+  // would start dictating instead.
+  btn.addEventListener("mousedown", (e) => e.preventDefault());
+
   btn.addEventListener("click", () => {
     if (recording) {
       recog.stop();
+      return;
+    }
+    if (wantsSend()) {
+      // The button reads "send" because the field has focus, not necessarily
+      // because there's anything in it — an empty box just does nothing.
+      if (input.value.trim() || pendingAttachments.length) {
+        document.getElementById("chat-form").requestSubmit();
+      }
       return;
     }
     // Audio leaves the device for the browser's speech service (Google or
@@ -166,7 +203,14 @@ function setupDictation(input) {
     }
   });
 
+  // Clicking into the field is what turns the mic into a send button, so these
+  // are the events that decide it.
+  input.addEventListener("focus", syncButton);
+  input.addEventListener("blur", syncButton);
+  input.addEventListener("input", syncButton);
+
   btn.classList.remove("hidden");
+  syncButton();
 }
 
 // ---- attachments ----
