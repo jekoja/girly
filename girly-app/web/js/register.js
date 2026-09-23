@@ -14,7 +14,7 @@
   document.getElementById("show-signin").addEventListener("click", () => {
     registerForm.classList.add("hidden");
     signinForm.classList.remove("hidden");
-    formTitle.textContent = "Welcome Back to Your Sanctuary";
+    formTitle.textContent = "Welcome Back";
     signinForm.classList.add("fade-in");
   });
   document.getElementById("show-register").addEventListener("click", () => {

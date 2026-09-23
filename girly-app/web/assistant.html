@@ -23,34 +23,24 @@
       padding: 2px var(--sp-xs);
       margin: 0 calc(-1 * var(--sp-xs));
     }
-    /* The footer (toggle + input dock) keeps its natural size — the stream
-       gives up space instead, so the input is never clipped or pushed under
-       the bottom nav. Only on absurdly short screens does it scroll inside
-       itself. */
+    /* The footer (clear button + input dock) keeps its natural size — the
+       stream gives up space instead, so the input is never clipped or pushed
+       under the bottom nav. Only on absurdly short screens does it scroll
+       inside itself. */
     .chat-footer {
       flex: 0 0 auto;
       min-height: 0;
       overflow-y: auto;
       overscroll-behavior: contain;
     }
-    /* Suggested questions live in a bottom-sheet overlay (girly.css .sheet),
-       so all six are visible on any screen without squeezing the input. */
-    .sheet .prompt-chip {
-      width: 100%;
-      justify-content: flex-start;
-      font-size: 12px;
-      padding: 0.625rem 0.875rem;
-    }
-    /* Short screens (landscape phones): tighten the chrome so the toggle and
-       the whole dock still fit. */
+    /* Short screens (landscape phones): tighten the chrome so the whole dock
+       still fits. */
     @media (max-height: 700px) {
       main.page { gap: var(--sp-sm); padding-top: calc(4rem + var(--sp-sm)); }
     }
     @media (max-height: 560px) {
       main.page { gap: var(--sp-xs); padding-top: calc(4rem + var(--sp-xs)); padding-bottom: 5.5rem; }
       .chat-dock { padding: 6px; }
-      /* two columns so all six questions fit landscape phones without scrolling */
-      #prompt-chips { display: grid; grid-template-columns: repeat(2, 1fr); }
       /* the disclaimer returns as soon as there's room for it */
       #chat-disclaimer { display: none; }
     }
@@ -62,24 +52,14 @@
   <!-- Chat stream -->
   <div class="chat-stream" id="chat-stream"></div>
 
-  <!-- Footer: suggested-questions toggle + input dock -->
+  <!-- Footer: input dock -->
   <div class="chat-footer stack gap-xs">
 
-    <!-- Opens the suggested-questions sheet -->
-    <div class="row gap-xs" style="padding-top:var(--sp-xs)">
-      <button class="btn btn-soft" id="suggest-toggle" type="button"
-              style="flex:1 1 auto; min-width:0; min-height:40px; padding:.375rem .75rem; justify-content:space-between"
-              aria-expanded="false" aria-controls="suggest-backdrop">
-        <span class="row gap-xs" style="min-width:0">
-          <span class="material-symbols-outlined" style="font-size:17px">psychology</span>
-          <span class="t-label-sm" id="suggest-label" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Suggested questions</span>
-        </span>
-        <span class="material-symbols-outlined" id="suggest-caret" style="font-size:18px">expand_more</span>
-      </button>
-      <!-- Revealed by assistant.js once there is a saved conversation. -->
+    <!-- Revealed by assistant.js once there is a saved conversation. -->
+    <div class="row gap-xs" style="padding-top:var(--sp-xs); justify-content:flex-end">
       <button class="icon-btn hidden" id="btn-clear-chat" type="button"
               aria-label="Clear your conversation" title="Clear your conversation"
-              style="width:40px;height:40px;flex:0 0 auto;background:var(--surface-container-low)">
+              style="width:40px;height:40px;background:var(--surface-container-low)">
         <span class="material-symbols-outlined" style="font-size:20px">delete_sweep</span>
       </button>
     </div>
@@ -116,21 +96,6 @@
 
   </div>
 </main>
-
-<!-- Suggested questions sheet: an overlay, so all questions fit any screen -->
-<div class="sheet-backdrop" id="suggest-backdrop">
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Suggested questions">
-    <div class="sheet-handle"></div>
-    <div class="row-between" style="padding:0 var(--sp-xs) var(--sp-sm)">
-      <span class="t-label-sm" style="font-weight:700; color:var(--on-surface-variant)">Suggested questions</span>
-      <button class="icon-btn" id="suggest-close" type="button" aria-label="Close suggested questions"
-              style="width:32px;height:32px;background:var(--surface-container)">
-        <span class="material-symbols-outlined" style="font-size:18px">close</span>
-      </button>
-    </div>
-    <div class="stack gap-xs" id="prompt-chips" style="max-height:60dvh; overflow-y:auto; padding:2px var(--sp-xs) var(--sp-xs)"></div>
-  </div>
-</div>
 
 <div class="toast" role="status"></div>
 <script src="js/api.js"></script>

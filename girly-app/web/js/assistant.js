@@ -11,33 +11,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   ctxInfo.name = me.user.name.split(" ")[0];
   const c = me.cycle;
-  document.getElementById("suggest-label").textContent = c.has_data
-    ? `Suggested questions for Day ${c.cycle_day}`
-    : "Suggested questions";
 
-  // suggested questions live behind a toggle button that opens a sheet
-  const suggestToggle = document.getElementById("suggest-toggle");
-  const backdrop = document.getElementById("suggest-backdrop");
-  const caret = document.getElementById("suggest-caret");
-
-  const closeSuggestSheet = () => {
-    backdrop.classList.remove("open");
-    suggestToggle.setAttribute("aria-expanded", "false");
-    caret.textContent = "expand_more";
-  };
-
-  suggestToggle.addEventListener("click", () => {
-    const opening = !backdrop.classList.contains("open");
-    backdrop.classList.toggle("open", opening);
-    suggestToggle.setAttribute("aria-expanded", String(opening));
-    caret.textContent = opening ? "expand_less" : "expand_more";
-  });
-  document.getElementById("suggest-close").addEventListener("click", closeSuggestSheet);
-  backdrop.addEventListener("click", (e) => {
-    if (e.target === backdrop) closeSuggestSheet();
-  });
-
-  renderPromptChips();
   loadHistory(c);
 
   const chatForm = document.getElementById("chat-form");
@@ -291,30 +265,6 @@ function attachmentHTML(attachments) {
     )
     .join("");
   return `<div class="stack" style="gap:6px; margin-bottom:4px">${items}</div>`;
-}
-
-function renderPromptChips() {
-  const chips = [
-    ["🍫", "Why am I craving chocolate?"],
-    ["🎒", "What should I pack in my bag?"],
-    ["🌿", "Explain my fertile window"],
-    ["🔮", "How does Girly predict my cycle?"],
-    ["🔥", "How do I soothe cramps?"],
-    ["🌙", "Why is my mood shifting?"],
-  ];
-  document.getElementById("prompt-chips").innerHTML = chips
-    .map(([emoji, text]) =>
-      `<button class="prompt-chip" type="button"><span>${emoji}</span><span>${text}</span></button>`
-    ).join("");
-  document.querySelectorAll(".prompt-chip").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      // close the sheet, then send just the question text
-      document.getElementById("suggest-backdrop").classList.remove("open");
-      document.getElementById("suggest-toggle").setAttribute("aria-expanded", "false");
-      document.getElementById("suggest-caret").textContent = "expand_more";
-      sendMessage(btn.lastElementChild.textContent.trim());
-    })
-  );
 }
 
 function greet(c) {
