@@ -3,14 +3,14 @@
 Girly 🌸 — Cycle Companion Service (Python, stdlib only)
 
 A small, dependency-free HTTP service that powers the in-app assistant.
-Questions about health, the body, and personal hygiene go to Gemini Flash
+Questions about health, the body, and personal hygiene go to Gemini Flash-Lite
 (or Anthropic, if that's the key you have). The hand-written topic bank below
 is the fallback: crisis and urgent-care answers come from it always, and
 everything else when there's no key or the network is down — so the companion
 keeps working fully offline.
 
 Enable the AI layer with GEMINI_API_KEY (default provider, GIRLY_AI_MODEL
-defaults to gemini-2.5-flash) or ANTHROPIC_API_KEY. GIRLY_AI_PROVIDER forces a
+defaults to gemini-3.1-flash-lite) or ANTHROPIC_API_KEY. GIRLY_AI_PROVIDER forces a
 provider when both keys are present.
 
 Endpoints:
