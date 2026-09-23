@@ -1,0 +1,10 @@
+.git
+.gitignore
+
+# Python bytecode
+**/__pycache__/
+*.py[cod]
+
+# Excluded so the container starts clean and seeds the demo accounts on first
+# boot (Store.load -> _seed) instead of baking in committed local state.
+data/girly.json
