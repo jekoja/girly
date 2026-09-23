@@ -14,10 +14,7 @@
     /* Chat layout: full-height page, only the messages scroll — the input
        dock stays fixed at the bottom of the screen. */
     html, body { height: 100%; overflow: hidden; }
-    /* The dock card is the last thing on this page, so the shared 7rem of page
-       padding leaves a band of empty space under the disclaimer. The nav only
-       reaches about 5rem up; keep a little clearance over it and no more. */
-    main.page { height: 100dvh; overflow: hidden; padding-bottom: 5.5rem; }
+    main.page { height: 100dvh; overflow: hidden; }
     .chat-stream {
       flex: 1 1 0;
       min-height: 0;
@@ -44,8 +41,6 @@
     @media (max-height: 560px) {
       main.page { gap: var(--sp-xs); padding-top: calc(4rem + var(--sp-xs)); }
       .chat-dock { padding: 6px; }
-      /* the disclaimer returns as soon as there's room for it */
-      #chat-disclaimer { display: none; }
     }
   </style>
 </head>
@@ -91,10 +86,6 @@
           <span class="material-symbols-outlined" id="btn-mic-icon" style="font-size:20px">mic</span>
         </button>
       </form>
-      <div class="row" id="chat-disclaimer" style="justify-content:center; gap:4px; padding-inline:var(--sp-xs); padding-top:2px">
-        <span class="material-symbols-outlined" style="color:var(--outline); font-size:14px">shield</span>
-        <span class="t-label-sm" style="color:var(--outline)">Girly provides educational insights and is not a medical diagnosis.</span>
-      </div>
     </div>
 
   </div>
