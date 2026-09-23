@@ -14,7 +14,10 @@
     /* Chat layout: full-height page, only the messages scroll — the input
        dock stays fixed at the bottom of the screen. */
     html, body { height: 100%; overflow: hidden; }
-    main.page { height: 100dvh; overflow: hidden; }
+    /* The dock card is the last thing on this page, so the shared 7rem of page
+       padding leaves a band of empty space under the disclaimer. The nav only
+       reaches about 5rem up; keep a little clearance over it and no more. */
+    main.page { height: 100dvh; overflow: hidden; padding-bottom: 5.5rem; }
     .chat-stream {
       flex: 1 1 0;
       min-height: 0;
@@ -39,7 +42,7 @@
       main.page { gap: var(--sp-sm); padding-top: calc(4rem + var(--sp-sm)); }
     }
     @media (max-height: 560px) {
-      main.page { gap: var(--sp-xs); padding-top: calc(4rem + var(--sp-xs)); padding-bottom: 5.5rem; }
+      main.page { gap: var(--sp-xs); padding-top: calc(4rem + var(--sp-xs)); }
       .chat-dock { padding: 6px; }
       /* the disclaimer returns as soon as there's room for it */
       #chat-disclaimer { display: none; }
