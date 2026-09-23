@@ -112,9 +112,11 @@ function setupDictation(input) {
     syncButton();
   };
 
-  // In the field, or with something typed, the same button means send.
-  const wantsSend = () =>
-    document.activeElement === input || input.value.trim() !== "";
+  // Typed text, and nothing else, turns the mic into a send button. Tapping
+  // into the field must not: the field is where a dictation lands, so it is the
+  // first thing anyone touches on the way to the mic, and swapping the button
+  // out from under them there hides the control they came for.
+  const wantsSend = () => input.value.trim() !== "";
 
   // While dictating it is always the stop square. The transcript lands in the
   // field, which would otherwise satisfy wantsSend() and swap the stop button
@@ -169,9 +171,9 @@ function setupDictation(input) {
     if (recording) recog.stop();
   };
 
-  // Pressing the button must not take focus off the field: the textarea would
-  // blur first, the button would flip back to a mic, and a tap meant to send
-  // would start dictating instead.
+  // Keep the caret in the field when the button is pressed: on a phone that
+  // holds the keyboard open across a dictation, and on a desktop it leaves the
+  // cursor where the next word goes once the transcript lands.
   btn.addEventListener("mousedown", (e) => e.preventDefault());
 
   btn.addEventListener("click", () => {
@@ -180,11 +182,10 @@ function setupDictation(input) {
       return;
     }
     if (wantsSend()) {
-      // The button reads "send" because the field has focus, not necessarily
-      // because there's anything in it — an empty box just does nothing.
-      if (input.value.trim() || pendingAttachments.length) {
-        document.getElementById("chat-form").requestSubmit();
-      }
+      // The button only says "send" when there is text, so there is always
+      // something to submit. An attached photo with no text still sends on
+      // Enter, which is why the mic is free to mean dictation here.
+      document.getElementById("chat-form").requestSubmit();
       return;
     }
     // Audio leaves the device for the browser's speech service (Google or
@@ -203,10 +204,8 @@ function setupDictation(input) {
     }
   });
 
-  // Clicking into the field is what turns the mic into a send button, so these
-  // are the events that decide it.
-  input.addEventListener("focus", syncButton);
-  input.addEventListener("blur", syncButton);
+  // Typing is the only thing that changes the button, and a dictation feeds the
+  // field through paint(), so this one event covers both routes to a full box.
   input.addEventListener("input", syncButton);
 
   btn.classList.remove("hidden");
