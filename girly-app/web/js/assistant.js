@@ -38,13 +38,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   renderPromptChips();
-  greet(c);
+  loadHistory(c);
 
   const chatForm = document.getElementById("chat-form");
   const chatInput = document.getElementById("chat-input");
 
+  document.getElementById("btn-clear-chat").addEventListener("click", () => clearHistory(c));
+
   chatForm.addEventListener("submit", (e) => {
     e.preventDefault();
+    stopDictation();  // else the last words land back in the box after it clears
     sendMessage(chatInput.value.trim());
   });
 
@@ -68,10 +71,103 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   attachInput.addEventListener("change", uploadSelectedFiles);
 
+  setupDictation(chatInput);
+
   // arriving from the Learn page "Ask" bar?
   const prefill = new URLSearchParams(window.location.search).get("q");
   if (prefill) sendMessage(prefill);
 });
+
+// ---- dictation ----
+// Speak the question, read it back in the ask bar, fix anything misheard, then
+// press send. Nothing here ever submits: the transcript is a draft the user
+// approves, which is the whole point of routing speech through the composer
+// instead of straight into sendMessage().
+let stopDictation = () => {};  // no-op until setupDictation runs
+
+function setupDictation(input) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = document.getElementById("btn-mic");
+  if (!SpeechRecognition) return;  // stays hidden — Firefox has no speech engine
+
+  const icon = document.getElementById("btn-mic-icon");
+  const recog = new SpeechRecognition();
+  recog.interimResults = true;   // show words as they're recognised, not after
+  recog.continuous = false;      // one question per tap
+  recog.lang = document.documentElement.lang || navigator.language || "en-US";
+
+  // Text already in the box when the mic was tapped. Dictation appends to it so
+  // a half-typed question isn't lost, and so each interim result replaces only
+  // the dictated part.
+  let base = "";
+  let recording = false;
+
+  const paint = (text) => {
+    input.value = text;
+    autoGrowInput(input);
+  };
+
+  const setRecording = (on) => {
+    recording = on;
+    btn.classList.toggle("recording", on);
+    btn.setAttribute("aria-pressed", String(on));
+    icon.textContent = on ? "stop" : "mic";
+    btn.title = on ? "Stop dictating" : "Dictate your question";
+  };
+
+  recog.onresult = (e) => {
+    // Rebuilt from the full result list rather than from e.resultIndex: once a
+    // chunk is finalised, resultIndex advances past it, and slicing from there
+    // would drop the words already spoken.
+    let said = "";
+    for (let i = 0; i < e.results.length; i++) said += e.results[i][0].transcript;
+    said = said.trim();
+    paint(base ? `${base} ${said}` : said);
+  };
+
+  recog.onerror = (e) => {
+    const messages = {
+      "not-allowed": "Microphone access is blocked. Allow it in your browser settings to dictate.",
+      "service-not-allowed": "Microphone access is blocked. Allow it in your browser settings to dictate.",
+      "no-speech": "I didn't catch anything — tap the mic and try again.",
+      "audio-capture": "No microphone found on this device.",
+      network: "Dictation needs a connection and couldn't reach the speech service.",
+    };
+    Girly.toast(messages[e.error] || "Dictation stopped unexpectedly.", "mic_off");
+  };
+
+  // Fires on natural end as well as on stop(), so this is the single place the
+  // button resets — otherwise a recognition that ends on its own leaves the
+  // button stuck on "stop".
+  recog.onend = () => setRecording(false);
+
+  stopDictation = () => {
+    if (recording) recog.stop();
+  };
+
+  btn.addEventListener("click", () => {
+    if (recording) {
+      recog.stop();
+      return;
+    }
+    // Audio leaves the device for the browser's speech service (Google or
+    // Apple). Said once, then not again.
+    if (!localStorage.getItem("girly-dictation-notice")) {
+      localStorage.setItem("girly-dictation-notice", "1");
+      Girly.toast("Dictation uses your browser's speech service, so what you say is sent to it.", "privacy_tip");
+    }
+    base = input.value.trim();
+    try {
+      recog.start();
+      setRecording(true);
+    } catch (e) {
+      // start() throws if a previous session hasn't finished tearing down yet
+      setRecording(false);
+    }
+  });
+
+  btn.classList.remove("hidden");
+}
 
 // ---- attachments ----
 let pendingAttachments = [];
@@ -196,30 +292,30 @@ function greet(c) {
   appendBot(`<p class="t-body-md" style="margin:0">${opening}</p>`);
 }
 
-function userBubble(text, attachments) {
+function userBubble(text, attachments, time) {
   const row = document.createElement("div");
-  row.className = "bubble-row user fade-in";
+  row.className = "bubble-row user" + (replaying ? "" : " fade-in");
   row.innerHTML = `
     <div class="bubble-col user">
       <div class="bubble user-bubble">
         ${attachmentHTML(attachments)}
         ${text ? `<p class="t-body-md" style="margin:0">${Girly.escapeHtml(text)}</p>` : ""}
       </div>
-      <span class="bubble-time">${nowTime()}</span>
+      <span class="bubble-time">${time || nowTime()}</span>
     </div>`;
   document.getElementById("chat-stream").appendChild(row);
-  scrollStream();
+  if (!replaying) scrollStream();
 }
 
-function appendBot(html, feedback = true) {
+function appendBot(html, feedback = true, time) {
   const row = document.createElement("div");
-  row.className = "bubble-row fade-in";
+  row.className = "bubble-row" + (replaying ? "" : " fade-in");
   row.innerHTML = `
     <div class="bot-avatar"><span class="material-symbols-outlined" style="font-size:18px">auto_awesome</span></div>
     <div class="bubble-col">
       <div class="bubble bot">${html}</div>
       ${feedback ? `<div class="row" style="justify-content:space-between; padding-inline:4px">
-        <span class="bubble-time">${nowTime()}</span>
+        <span class="bubble-time">${time || nowTime()}</span>
         <div class="row" style="gap:var(--sp-xs)">
           <button class="icon-btn" style="width:28px;height:28px;background:var(--surface-container)" aria-label="Helpful response" type="button"><span class="material-symbols-outlined" style="font-size:15px">thumb_up</span></button>
           <button class="icon-btn" style="width:28px;height:28px;background:var(--surface-container)" aria-label="Save tip" type="button"><span class="material-symbols-outlined" style="font-size:15px">bookmark_border</span></button>
@@ -230,7 +326,7 @@ function appendBot(html, feedback = true) {
     btn.addEventListener("click", () => Girly.toast("Thanks for the feedback 💜", "favorite"))
   );
   document.getElementById("chat-stream").appendChild(row);
-  scrollStream();
+  if (!replaying) scrollStream();
 }
 
 function thinkingBubble() {
@@ -260,6 +356,25 @@ function autoGrowInput(el) {
   el.style.overflowY = needed > max ? "auto" : "hidden";
 }
 
+// The body of a companion reply. Shared by live answers and replayed history —
+// building it in two places is how the two drift apart.
+function botHTML(res) {
+  let html = `<p class="t-body-md" style="margin:0">${Girly.escapeHtml(res.reply || "")}</p>`;
+  if (res.tips?.length) {
+    html += `<div class="stack" style="gap:var(--sp-xs); padding-top:var(--sp-sm)">` +
+      res.tips.map((tip, i) =>
+        `<div class="care-tip"><span class="material-symbols-outlined" style="color:var(--primary); font-size:18px">${TIP_ICONS[i % TIP_ICONS.length]}</span><span>${Girly.escapeHtml(tip)}</span></div>`
+      ).join("") + `</div>`;
+  }
+  if (res.doctor) {
+    html += `<div class="doctor-note" style="margin-top:var(--sp-sm)">
+      <span class="material-symbols-outlined filled" style="color:var(--primary); font-size:18px; flex-shrink:0">info</span>
+      <span><b style="color:var(--primary)">Friendly reminder:</b> if symptoms ever become sharp, unmanageable, or disrupt your movement, please reach out to your doctor or gynecologist.</span>
+    </div>`;
+  }
+  return html;
+}
+
 async function sendMessage(query) {
   const input = document.getElementById("chat-input");
   const attachments = pendingAttachments.splice(0);
@@ -280,29 +395,71 @@ async function sendMessage(query) {
       }),
     });
     document.getElementById("bot-thinking")?.remove();
-
-    let html = `<p class="t-body-md" style="margin:0">${Girly.escapeHtml(res.reply)}</p>`;
-    if (res.tips?.length) {
-      html += `<div class="stack" style="gap:var(--sp-xs); padding-top:var(--sp-sm)">` +
-        res.tips.map((tip, i) =>
-          `<div class="care-tip"><span class="material-symbols-outlined" style="color:var(--primary); font-size:18px">${TIP_ICONS[i % TIP_ICONS.length]}</span><span>${Girly.escapeHtml(tip)}</span></div>`
-        ).join("") + `</div>`;
-    }
-    if (res.doctor) {
-      html += `<div class="doctor-note" style="margin-top:var(--sp-sm)">
-        <span class="material-symbols-outlined filled" style="color:var(--primary); font-size:18px; flex-shrink:0">info</span>
-        <span><b style="color:var(--primary)">Friendly reminder:</b> if symptoms ever become sharp, unmanageable, or disrupt your movement, please reach out to your doctor or gynecologist.</span>
-      </div>`;
-    }
-    appendBot(html);
+    appendBot(botHTML(res));
+    setHasHistory(true);
   } catch (e) {
     document.getElementById("bot-thinking")?.remove();
     appendBot(`<p class="t-body-md" style="margin:0; color:var(--error)">${Girly.escapeHtml(e.message)}</p>`, false);
   }
 }
 
-function nowTime() {
-  return new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+// ---- saved conversation ----
+// Replaying a long transcript should not fade and smooth-scroll once per bubble,
+// so both bubble builders check this and scroll once at the end instead.
+let replaying = false;
+
+// The clear button only makes sense when there is something to clear.
+function setHasHistory(on) {
+  document.getElementById("btn-clear-chat").classList.toggle("hidden", !on);
+}
+
+// Restore what was said before. Falls back to the greeting when there is
+// nothing saved — and also when the request fails, so a broken fetch never
+// leaves the user staring at an empty chat.
+async function loadHistory(c) {
+  let turns = [];
+  try {
+    const res = await Girly.api("/api/chat/history");
+    turns = res.turns || [];
+  } catch (e) {
+    greet(c);
+    return;
+  }
+  if (!turns.length) {
+    greet(c);
+    return;
+  }
+
+  replaying = true;
+  turns.forEach((t) => {
+    const time = nowTime(t.time);
+    userBubble(t.question, t.attachments, time);
+    if (t.reply) appendBot(botHTML(t), true, time);
+  });
+  replaying = false;
+  scrollStream();
+  setHasHistory(true);
+}
+
+async function clearHistory(c) {
+  if (!confirm("Clear your conversation with the companion? This can't be undone.")) return;
+  try {
+    await Girly.api("/api/chat/clear", { method: "POST" });
+  } catch (e) {
+    Girly.toast(e.message, "error");
+    return;
+  }
+  document.getElementById("chat-stream").innerHTML = "";
+  setHasHistory(false);
+  greet(c);
+  Girly.toast("Conversation cleared", "delete_sweep");
+}
+
+// Formats a stored ISO timestamp, or the current time when given nothing.
+function nowTime(iso) {
+  const when = iso ? new Date(iso) : new Date();
+  if (isNaN(when)) return "";
+  return when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 function scrollStream() {

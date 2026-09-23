@@ -399,18 +399,46 @@ class App:
         )
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
+                status = resp.status
                 reply = json.loads(resp.read().decode("utf-8"))
-                return resp.status, reply, []
         except urllib.error.HTTPError as err:
+            status = err.code
             try:
                 reply = json.loads(err.read().decode("utf-8"))
             except (ValueError, OSError):
                 reply = {"error": "companion service error"}
-            return err.code, reply, []
         except (urllib.error.URLError, OSError, TimeoutError):
             raise ApiError(
                 502, "the companion service is unreachable — is assistant/server.py running?"
             )
+
+        # Only a real answer is worth remembering. A companion error is not an
+        # answer, and storing it would replay it as one.
+        if 200 <= status < 300:
+            answer = reply if isinstance(reply, dict) else {}
+            self.store.append_chat(
+                u["id"],
+                {
+                    "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "question": message,
+                    "attachments": attachments,
+                    "reply": answer.get("reply", ""),
+                    "tips": answer.get("tips") or [],
+                    "doctor": bool(answer.get("doctor")),
+                },
+            )
+        return status, reply, []
+
+    def api_chat_history(self, body, query, headers):
+        """Everything said so far between this user and the companion."""
+        u = self.require_user(headers)
+        return 200, {"turns": u.get("chats") or []}, []
+
+    def api_chat_clear(self, body, query, headers):
+        u = self.require_user(headers)
+        self.store.clear_chats(u["id"])
+        self.store.log_audit(u["email"], "chat", "Cleared their companion conversation")
+        return 200, {"ok": True}, []
 
     # ---- Admin ----
 

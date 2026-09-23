@@ -206,6 +206,67 @@ class GreetingTests(unittest.TestCase):
             with self.subTest(msg=not_greeting):
                 self.assertFalse(companion.is_pure_greeting(not_greeting))
 
+    def test_casual_greetings_are_answered_locally(self):
+        # These all reached the AI before — "sup" got the generic refusal, which
+        # reads as the app failing rather than as a hello.
+        for hello in ("yo", "howdy", "sup", "morning", "evening", "night",
+                      "greetings", "good day", "good night", "hola", "aloha"):
+            with self.subTest(hello=hello):
+                r = companion.respond(
+                    hello,
+                    {"name": "Maya", "phase": "luteal", "days_until_period": 3},
+                )
+                self.assertIn("Maya", r["reply"])
+                self.assertEqual(r["tips"], [])
+                self.assertFalse(r["doctor"])
+                self.assertNotIn("next period is estimated", r["reply"])
+                self.assertNotIn("not able to give you a dependable answer",
+                                 r["reply"].lower())
+
+    def test_casual_greetings_do_not_call_the_ai(self):
+        calls = []
+        with mock.patch.object(companion, "ai_provider", return_value="gemini"), \
+             mock.patch.object(companion, "ai_api_key", return_value="test-key"), \
+             mock.patch.object(
+                 companion.urllib.request, "urlopen",
+                 side_effect=lambda *a, **k: calls.append(1) or FakeResponse(GEMINI_BODY),
+             ):
+            for hello in ("yo", "howdy", "sup", "morning", "hola"):
+                companion.respond(hello, {"name": "Maya"})
+        self.assertEqual(calls, [])
+
+    def test_stretched_greetings_are_recognised(self):
+        # How people actually type. Only the *final* letter of each greeting word
+        # is allowed to repeat — enough for "hiii"/"hellooo" without making every
+        # short greeting match half the dictionary. "suuup" is deliberately not
+        # here: middle letters are not stretched by the pattern.
+        for hello in ("hii", "hiii", "heyyy", "yooo", "hellooo", "hiiii there",
+                      "supp", "good morninggg"):
+            with self.subTest(hello=hello):
+                self.assertTrue(companion.is_pure_greeting(hello))
+
+    def test_greeting_with_a_question_still_answers_the_question(self):
+        # widening the list must not swallow the question that follows
+        for msg in ("yo, my period is late", "morning, I have bad cramps",
+                    "hola, what is PCOS?", "hey there, is discharge normal?"):
+            with self.subTest(msg=msg):
+                self.assertFalse(companion.is_pure_greeting(msg))
+
+    def test_time_words_carrying_content_are_not_greetings(self):
+        # The guard for the widened morning/evening/night family — the main
+        # regression risk of adding them, since these words start real questions.
+        for msg in ("I can't sleep at night", "my cramps are worse in the morning",
+                    "I feel low in the evening", "I woke up 3 times last night"):
+            with self.subTest(msg=msg):
+                self.assertFalse(companion.is_pure_greeting(msg))
+
+    def test_stretched_greeting_words_inside_sentences_are_not_matched(self):
+        # the "+" on the final letter must not start matching ordinary words
+        for msg in ("I have supper at eight", "my knee hurts when I run",
+                    "there is a lump in my breast"):
+            with self.subTest(msg=msg):
+                self.assertFalse(companion.is_pure_greeting(msg))
+
 
 class ParseAiReplyTests(unittest.TestCase):
     def test_plain_json(self):

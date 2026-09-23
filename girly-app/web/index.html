@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>Girly  - Create Your Private Account</title>
+  <title>Girly - Sign In</title>
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -24,12 +24,15 @@
       <span class="material-symbols-outlined filled" style="font-size:14px">spa</span>
       Private &amp; Reassuring
     </span>
-    <h1 class="t-headline-lg" id="form-title">Create Your Private Account</h1>
+    <h1 class="t-headline-lg" id="form-title">Welcome Back to Your Sanctuary</h1>
     <p class="t-body-md muted" style="max-width:280px; margin:0 auto">A safe, gentle space to understand and track your rhythm.</p>
   </header>
 
-  <!-- ================= REGISTER ================= -->
-  <form class="stack gap-lg" id="register-form">
+  <!-- ================= REGISTER =================
+       Hidden on arrival: every route into this page is a returning user (an
+       expired session from requireAuth, or a sign-out). Shown by the
+       "Create an account" link under the sign-in form. -->
+  <form class="stack gap-lg hidden" id="register-form">
 
     <!-- About you -->
     <section class="card stack gap-md">
@@ -193,12 +196,13 @@
     </div>
   </form>
 
-  <!-- ================= SIGN IN ================= -->
-  <form class="stack gap-md hidden" id="signin-form" style="max-width:380px; margin:0 auto; width:100%">
+  <!-- ================= SIGN IN =================
+       The default view. -->
+  <form class="stack gap-md" id="signin-form" style="max-width:380px; margin:0 auto; width:100%">
     <section class="card stack gap-md">
       <div class="row gap-xs" style="color:var(--primary)">
         <span class="material-symbols-outlined" style="font-size:20px">lock_open</span>
-        <h2 class="t-headline-sm">Welcome Back 💜</h2>
+        <h2 class="t-headline-sm">Sign In</h2>
       </div>
       <div class="field">
         <label for="signin-email">Email Address</label>

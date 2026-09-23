@@ -66,15 +66,21 @@
   <div class="chat-footer stack gap-xs">
 
     <!-- Opens the suggested-questions sheet -->
-    <div class="stack gap-xs" style="padding-top:var(--sp-xs)">
+    <div class="row gap-xs" style="padding-top:var(--sp-xs)">
       <button class="btn btn-soft" id="suggest-toggle" type="button"
-              style="width:100%; min-height:40px; padding:.375rem .75rem; justify-content:space-between"
+              style="flex:1 1 auto; min-width:0; min-height:40px; padding:.375rem .75rem; justify-content:space-between"
               aria-expanded="false" aria-controls="suggest-backdrop">
         <span class="row gap-xs" style="min-width:0">
           <span class="material-symbols-outlined" style="font-size:17px">psychology</span>
           <span class="t-label-sm" id="suggest-label" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Suggested questions</span>
         </span>
         <span class="material-symbols-outlined" id="suggest-caret" style="font-size:18px">expand_more</span>
+      </button>
+      <!-- Revealed by assistant.js once there is a saved conversation. -->
+      <button class="icon-btn hidden" id="btn-clear-chat" type="button"
+              aria-label="Clear your conversation" title="Clear your conversation"
+              style="width:40px;height:40px;flex:0 0 auto;background:var(--surface-container-low)">
+        <span class="material-symbols-outlined" style="font-size:20px">delete_sweep</span>
       </button>
     </div>
 
@@ -88,6 +94,13 @@
         </button>
         <input type="file" id="attachment-input" class="hidden" multiple
                accept="image/png, image/jpeg, image/gif, image/webp, .pdf, .txt, .md, .doc, .docx"/>
+        <!-- Dictation. Hidden by assistant.js where the browser has no speech
+             engine, so a dead control never shows. -->
+        <button class="icon-btn hidden" type="button" id="btn-mic" aria-label="Dictate your question"
+                aria-pressed="false" title="Dictate your question"
+                style="width:40px;height:40px;background:var(--surface-container-low)">
+          <span class="material-symbols-outlined" id="btn-mic-icon" style="font-size:20px">mic</span>
+        </button>
         <textarea class="chat-input" id="chat-input" rows="1" autocomplete="off"
                   placeholder="Ask anything about periods, hygiene, or cramps..."></textarea>
         <button class="send-btn" id="send-button" type="submit" aria-label="Send message">

@@ -1113,15 +1113,25 @@ def _(ctx):
 # "hey, I have cramps" — should still reach the topic above, not this) ------
 
 GREETING_WORDS = (
-    "hi", "hello", "hey", "heya", "hiya", "good morning", "good afternoon",
-    "good evening", "how are you", "how's it going", "hows it going", "what's up", "whats up",
+    "hi", "hello", "hey", "heya", "hiya", "yo", "howdy", "sup", "greetings",
+    "morning", "evening", "night", "good morning", "good afternoon",
+    "good evening", "good day", "good night", "how are you", "how's it going",
+    "hows it going", "what's up", "whats up", "hola", "aloha",
 )
+# Longest first, and the final letter allowed to stretch: "good morning" has to
+# win over "morning" (or "good" is left over and the message stops looking like
+# a greeting), and "hiii"/"heyyy"/"hellooo" are how people actually type.
 GREETING_RE = re.compile(
-    r"\b(" + "|".join(re.escape(w) for w in GREETING_WORDS) + r")\b", re.IGNORECASE
+    r"\b(" + "|".join(
+        re.escape(w) + "+" for w in sorted(GREETING_WORDS, key=len, reverse=True)
+    ) + r")\b",
+    re.IGNORECASE,
 )
 # Words left over once the greeting itself is stripped — "hello there" is still
 # just a hello.
-GREETING_LEFTOVERS = {"there", "girly", "again", "friend", "everyone"}
+GREETING_LEFTOVERS = {
+    "there", "girly", "again", "friend", "everyone", "all", "guys", "folks", "you",
+}
 
 
 def is_pure_greeting(message):
@@ -1223,7 +1233,10 @@ AI_SYSTEM_PROMPT = (
     "persistent, or possibly an emergency, say plainly that they should see a doctor, "
     "pharmacist, school nurse, or emergency service and set \"doctor\": true. If a question "
     "falls outside health and personal hygiene, gently steer back to what you can help "
-    "with. Keep the reply under 120 words, in simple, friendly language. Respond ONLY with "
+    "with. If the message is only a greeting — hello, hi, yo, morning, hola, or the like "
+    "— answer with a short, warm greeting and nothing else: no cycle or health content, "
+    'no advice, an empty tips list, and "doctor": false. Keep the reply under 120 words, '
+    "in simple, friendly language. Respond ONLY with "
     'a JSON object: {"reply": string, "tips": [up to 3 short practical tips], '
     '"doctor": boolean}.'
 )

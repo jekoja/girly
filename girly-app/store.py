@@ -14,6 +14,7 @@ from auth import hash_password, random_token
 from cycle import today_str
 
 AUDIT_LIMIT = 100
+CHAT_LIMIT = 100  # companion turns kept per user, newest wins
 
 
 def day_log(date, flow="", moods=None, symptoms=None, note=""):
@@ -202,6 +203,26 @@ class Store:
                     return
             logs.append(log)
             logs.sort(key=lambda l: l.get("date", ""))
+
+        return self.update_user(user_id, fn)
+
+    # ---- Companion chat history ----
+    #
+    # One dict per exchange, so trimming can never separate a question from the
+    # answer it got. Stored on the user record; a file written before this
+    # existed simply has no "chats" key, which every reader tolerates.
+
+    def append_chat(self, user_id, turn):
+        def fn(u):
+            chats = u.setdefault("chats", [])
+            chats.append(turn)
+            del chats[:-CHAT_LIMIT]  # keep the newest CHAT_LIMIT turns
+
+        return self.update_user(user_id, fn)
+
+    def clear_chats(self, user_id):
+        def fn(u):
+            u["chats"] = []
 
         return self.update_user(user_id, fn)
 
