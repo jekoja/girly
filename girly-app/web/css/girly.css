@@ -1034,8 +1034,12 @@ input[type="range"]::-webkit-slider-thumb {
 /* ---- Profile page ---- */
 /* The cover banner runs to the card's own edges: the negative margins cancel the
    card's padding, and the card rounds and clips it (it has overflow:hidden), so
-   the strip needs no radius for the top corners to look right. 3:1 at the card's
-   width works out around 110px tall on a phone and 185px on a desktop. */
+   the strip needs no radius for the top corners to look right.
+
+   3:1 is only the empty state, and the shape a very wide panorama gets clamped
+   to. Once there is a picture, profile.js sets the ratio from the image itself,
+   so the strip is exactly as tall as the photo needs — see .cover img below for
+   why that is what makes the whole picture fit. */
 .cover {
   position: relative;
   width: calc(100% + 2 * var(--sp-lg));
@@ -1051,12 +1055,18 @@ input[type="range"]::-webkit-slider-thumb {
 }
 /* Absolute rather than a flex item: the strip's height comes from its aspect
    ratio, and this fills whatever that works out to without depending on how the
-   flex container decides to size an image. object-fit crops the middle band of a
-   tall photo, which is the part worth keeping. */
+   flex container decides to size an image.
+
+   `contain`, not `cover`: cover fills the strip by cropping the photo down to a
+   band through its middle, which is what "half way" looked like. Contain shows
+   all of it. Because the strip is set to the photo's own ratio there is nothing
+   to letterbox either — the gradient only shows on the sides of an unusually
+   tall picture, where the ratio is clamped to keep the banner from taking over
+   the card. */
 .cover img {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 .cover-empty {

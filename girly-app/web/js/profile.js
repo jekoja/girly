@@ -33,23 +33,41 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ---- render cover photo ----
   // Mirrors renderAvatar: the banner holds the picture or the invitation to add
   // one, and the badge follows whichever state it is in.
+  //
+  // The strip's shape is the picture's shape, so the whole photo fits and
+  // nothing is cropped to a band through the middle. Only a shape at the far
+  // ends of the range is clamped — a portrait would otherwise stand the banner
+  // as tall as it is wide, and a panorama would flatten it to a hairline.
+  const COVER_RATIO_MIN = 1.5;
+  const COVER_RATIO_MAX = 4;
+
   function renderCover() {
+    const strip = document.getElementById("cover");
     const img = document.getElementById("cover-img");
     const empty = document.getElementById("cover-empty");
     // Nothing to remove until there is a banner to remove.
     document.getElementById("btn-remove-cover").classList.toggle("hidden", !user.cover);
-    document.getElementById("cover").setAttribute(
+    strip.setAttribute(
       "aria-label", user.cover ? "Change cover photo" : "Add a cover photo");
     document.getElementById("cover-edit-icon").textContent =
       user.cover ? "photo_camera" : "add_a_photo";
     if (user.cover) {
+      // Measured once the image has decoded — naturalWidth is 0 before that.
+      img.onload = () => {
+        const ratio = img.naturalWidth / img.naturalHeight;
+        if (!isFinite(ratio) || ratio <= 0) return;
+        strip.style.aspectRatio = String(
+          Math.min(COVER_RATIO_MAX, Math.max(COVER_RATIO_MIN, ratio)));
+      };
       img.src = user.cover;
       img.classList.remove("hidden");
       empty.classList.add("hidden");
     } else {
+      img.onload = null;
       img.removeAttribute("src");
       img.classList.add("hidden");
       empty.classList.remove("hidden");
+      strip.style.aspectRatio = "";  // back to the 3:1 empty state
     }
   }
   renderCover();
