@@ -72,6 +72,10 @@
   --sp-xl: 2.25rem;
   --margin: 1.25rem;
 
+  /* The profile picture's diameter. A token because the cover banner sizes
+     itself against it — the two have to agree or the banner stops short. */
+  --avatar-size: 112px;
+
   --font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --content-w: 620px;
 }
@@ -1036,39 +1040,52 @@ input[type="range"]::-webkit-slider-thumb {
    card's padding, and the card rounds and clips it (it has overflow:hidden), so
    the strip needs no radius for the top corners to look right.
 
-   3:1 is only the empty state, and the shape a very wide panorama gets clamped
-   to. Once there is a picture, profile.js sets the ratio from the image itself,
-   so the strip is exactly as tall as the photo needs — see .cover img below for
-   why that is what makes the whole picture fit. */
+   3:1 is only the empty state and, through profile.js, the shape a stitched
+   panorama gets clamped to. Once there is a picture the strip is given that
+   picture's own ratio, so the photo fills it edge to edge — see .cover img.
+
+   The floor under the height is what lets the avatar sit on the banner rather
+   than below it: the banner must be at least as tall as the picture is round,
+   or the picture would hang off the top of its own cover. It only bites on a
+   very wide photo, where the alternative is a banner too short to hold the
+   avatar at all. */
 .cover {
   position: relative;
   width: calc(100% + 2 * var(--sp-lg));
   margin: calc(-1 * var(--sp-lg)) calc(-1 * var(--sp-lg)) 0;
   aspect-ratio: 3 / 1;
+  min-height: calc(var(--avatar-size) + var(--sp-lg));
   border-radius: var(--r-md) var(--r-md) 0 0;
   background: linear-gradient(135deg, var(--primary-fixed), var(--secondary-fixed));
   color: var(--on-primary-fixed);
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: var(--sp-md);
   cursor: pointer;
   overflow: hidden;
   user-select: none;
+}
+/* The empty state carries no photo to fill the strip, so it can afford a taller
+   floor — enough for the invitation to sit above the avatar rather than being
+   covered by it. */
+.cover.is-empty {
+  min-height: calc(var(--avatar-size) + 3.5rem);
 }
 /* Absolute rather than a flex item: the strip's height comes from its aspect
    ratio, and this fills whatever that works out to without depending on how the
    flex container decides to size an image.
 
-   `contain`, not `cover`: cover fills the strip by cropping the photo down to a
-   band through its middle, which is what "half way" looked like. Contain shows
-   all of it. Because the strip is set to the photo's own ratio there is nothing
-   to letterbox either — the gradient only shows on the sides of an unusually
-   tall picture, where the ratio is clamped to keep the banner from taking over
-   the card. */
+   `contain`, not `cover`: the strip is already the photo's shape, so the two
+   agree and the photo fills the banner exactly. They only part company at the
+   ends of the clamp range, and there contain letterboxes where cover would
+   crop. */
 .cover img {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: contain;
   display: block;
 }
+/* Top-aligned by the container's align-items, not centred: the avatar covers
+   the lower part of the banner, so centred words would end up underneath it. */
 .cover-empty {
   display: flex; align-items: center; gap: 6px;
   opacity: .75;
@@ -1092,7 +1109,12 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .profile-avatar {
   position: relative;
-  width: 112px; height: 112px;
+  width: var(--avatar-size); height: var(--avatar-size);
+  /* Pulled up by its own height, plus the stack gap it would otherwise sit in,
+     so its base lands level with the banner's base: the cover stops exactly
+     where the picture ends. It comes later in the DOM, so it paints on top of
+     the banner without needing a z-index. */
+  margin-top: calc(-1 * (var(--avatar-size) + var(--sp-xs)));
   border-radius: var(--r-full);
   background: var(--primary-fixed);
   color: var(--on-primary-fixed);

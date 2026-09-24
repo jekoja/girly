@@ -11,9 +11,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   function renderAvatar() {
     const img = document.getElementById("avatar-img");
     const initials = document.getElementById("avatar-initials");
-    // Nothing to remove until a picture is set — the avatar itself is the
-    // control for adding or changing one, so its label follows suit.
-    document.getElementById("btn-remove-photo").classList.toggle("hidden", !user.avatar);
+    // The avatar is the control for adding or changing a picture, so its label
+    // follows which of the two it is offering.
     document.getElementById("profile-avatar").setAttribute(
       "aria-label", user.avatar ? "Change profile picture" : "Add a profile picture");
     document.getElementById("avatar-edit-icon").textContent =
@@ -34,23 +33,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Mirrors renderAvatar: the banner holds the picture or the invitation to add
   // one, and the badge follows whichever state it is in.
   //
-  // The strip's shape is the picture's shape, so the whole photo fits and
-  // nothing is cropped to a band through the middle. Only a shape at the far
-  // ends of the range is clamped — a portrait would otherwise stand the banner
-  // as tall as it is wide, and a panorama would flatten it to a hairline.
-  const COVER_RATIO_MIN = 1.5;
-  const COVER_RATIO_MAX = 4;
+  // The strip is given the picture's exact shape, so the picture fills it edge
+  // to edge with nothing cropped and nothing left over. The clamp only bites at
+  // the extremes, which is what `contain` in the stylesheet is there for: a
+  // photo outside the range letterboxes a little rather than being cropped.
+  //
+  // 4/3 is the floor because below it the banner squares up and starts taking
+  // over the card, and 6 is the ceiling because past that the strip is too thin
+  // for the avatar to sit on without the stylesheet's floor showing. Between
+  // them — which is where ordinary photos land — the picture fills the strip
+  // exactly.
+  const COVER_RATIO_MIN = 4 / 3;
+  const COVER_RATIO_MAX = 6;
 
   function renderCover() {
     const strip = document.getElementById("cover");
     const img = document.getElementById("cover-img");
     const empty = document.getElementById("cover-empty");
-    // Nothing to remove until there is a banner to remove.
-    document.getElementById("btn-remove-cover").classList.toggle("hidden", !user.cover);
     strip.setAttribute(
       "aria-label", user.cover ? "Change cover photo" : "Add a cover photo");
     document.getElementById("cover-edit-icon").textContent =
       user.cover ? "photo_camera" : "add_a_photo";
+    // The empty state needs a taller floor than a filled one: its words have to
+    // clear the avatar, which sits over the lower part of the banner either way.
+    strip.classList.toggle("is-empty", !user.cover);
     if (user.cover) {
       // Measured once the image has decoded — naturalWidth is 0 before that.
       img.onload = () => {
@@ -138,25 +144,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  document.getElementById("btn-remove-photo").addEventListener("click", async () => {
-    try {
-      await Girly.api("/api/profile/avatar", {
-        method: "POST",
-        body: JSON.stringify({ avatar: "" }),
-      });
-      user.avatar = "";
-      renderAvatar();
-      Girly.mountChrome({ active: "profile", name: user.name, avatar: "", role: user.role });
-      Girly.toast("Profile picture removed");
-    } catch (e) {
-      Girly.toast(e.message, "error");
-    }
-  });
-
   // ---- change cover photo ----
-  // The same shape as the avatar: one hidden file input, the strip as the
-  // control, and a quiet button that only exists once there is something to
-  // remove. A banner change does not touch the header, so unlike the avatar it
+  // The same shape as the avatar: one hidden file input and the strip as the
+  // control. A banner change does not touch the header, so unlike the avatar it
   // has no chrome to re-mount.
   const coverInput = document.getElementById("cover-input");
   function pickCover() {
@@ -180,20 +170,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       user.cover = res.cover;
       renderCover();
       Girly.toast("Cover photo updated 💜", "favorite");
-    } catch (e) {
-      Girly.toast(e.message, "error");
-    }
-  });
-
-  document.getElementById("btn-remove-cover").addEventListener("click", async () => {
-    try {
-      await Girly.api("/api/profile/cover", {
-        method: "POST",
-        body: JSON.stringify({ cover: "" }),
-      });
-      user.cover = "";
-      renderCover();
-      Girly.toast("Cover photo removed");
     } catch (e) {
       Girly.toast(e.message, "error");
     }
