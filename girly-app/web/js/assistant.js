@@ -7,17 +7,27 @@ let ctxInfo = { name: "there", cycle_day: null, phase_label: "" };
 document.addEventListener("DOMContentLoaded", async () => {
   const me = await Girly.requireAuth();
   if (!me) return;
-  Girly.mountChrome({ active: "assistant", name: me.user.name, avatar: me.user.avatar, role: me.user.role });
 
   ctxInfo.name = me.user.name.split(" ")[0];
   const c = me.cycle;
+
+  // The assistant is the one page that asks for the ⋮ menu. Its header keeps
+  // only the logo, the button and the avatar; Learn, Theme, Clear chat and
+  // Sign out sit behind it. Clearing means something only here, so the page
+  // passes the action in rather than the chrome guessing at it.
+  Girly.mountChrome({
+    active: "assistant",
+    name: me.user.name,
+    avatar: me.user.avatar,
+    role: me.user.role,
+    overflow: true,
+    onClearChat: () => clearHistory(c),
+  });
 
   loadHistory(c);
 
   const chatForm = document.getElementById("chat-form");
   const chatInput = document.getElementById("chat-input");
-
-  document.getElementById("btn-clear-chat").addEventListener("click", () => clearHistory(c));
 
   chatForm.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -401,9 +411,12 @@ async function sendMessage(query) {
 // so both bubble builders check this and scroll once at the end instead.
 let replaying = false;
 
-// The clear button only makes sense when there is something to clear.
+// The clear option only makes sense when there is something to clear. It lives
+// in the header's ⋮ menu now, so it may not exist at all if the chrome was
+// mounted without it.
 function setHasHistory(on) {
-  document.getElementById("btn-clear-chat").classList.toggle("hidden", !on);
+  const item = document.getElementById("more-clear");
+  if (item) item.classList.toggle("hidden", !on);
 }
 
 // Restore what was said before. Falls back to the greeting when there is

@@ -510,7 +510,42 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 18px; font-weight: 700; letter-spacing: -0.01em;
   color: var(--primary);
 }
-.header-actions { display: flex; align-items: center; gap: var(--sp-xs); }
+.header-actions { display: flex; align-items: center; gap: var(--sp-xs); position: relative; }
+
+/* ---- Header overflow menu (the ⋮) ----------------------------------------
+   Only the assistant asks for this. The menu hangs off the right edge of the
+   action row, which is already the page margin, so it lines up under the
+   avatar rather than under the button that opened it. */
+.more-menu {
+  position: absolute;
+  top: calc(100% + var(--sp-xs));
+  right: 0;
+  z-index: 1;
+  min-width: 176px;
+  padding: var(--sp-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--r-md);
+  background: var(--surface-container-lowest);
+  box-shadow: var(--shadow-float);
+}
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r-sm);
+  color: var(--on-surface);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.more-item:hover { background: var(--surface-container); }
+.more-item .material-symbols-outlined { color: var(--on-surface-variant); }
 .avatar {
   width: 32px; height: 32px;
   border-radius: var(--r-full);
@@ -997,6 +1032,48 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ---- Profile page ---- */
+/* The cover banner runs to the card's own edges: the negative margins cancel the
+   card's padding, and the card rounds and clips it (it has overflow:hidden), so
+   the strip needs no radius for the top corners to look right. 3:1 at the card's
+   width works out around 110px tall on a phone and 185px on a desktop. */
+.cover {
+  position: relative;
+  width: calc(100% + 2 * var(--sp-lg));
+  margin: calc(-1 * var(--sp-lg)) calc(-1 * var(--sp-lg)) 0;
+  aspect-ratio: 3 / 1;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: linear-gradient(135deg, var(--primary-fixed), var(--secondary-fixed));
+  color: var(--on-primary-fixed);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+}
+/* Absolute rather than a flex item: the strip's height comes from its aspect
+   ratio, and this fills whatever that works out to without depending on how the
+   flex container decides to size an image. object-fit crops the middle band of a
+   tall photo, which is the part worth keeping. */
+.cover img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cover-empty {
+  display: flex; align-items: center; gap: 6px;
+  opacity: .75;
+}
+/* Sits over the picture, so it is a translucent scrim rather than the solid
+   disc the avatar's badge uses — a colour picked to read on any photo. */
+.cover-edit {
+  position: absolute; right: 8px; bottom: 8px;
+  width: 32px; height: 32px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--inverse-surface) 55%, transparent);
+  color: var(--inverse-on-surface);
+  display: flex; align-items: center; justify-content: center;
+}
+
 .avatar img {
   width: 100%; height: 100%;
   border-radius: var(--r-full);

@@ -60,6 +60,7 @@ POST_ROUTES = {
     "/api/chat": App.api_chat,
     "/api/chat/clear": App.api_chat_clear,
     "/api/profile/avatar": App.api_profile_avatar,
+    "/api/profile/cover": App.api_profile_cover,
     "/api/profile/password": App.api_profile_password,
     "/api/attachments": App.api_attachments,
     "/api/admin/users/reset": App.api_admin_reset,

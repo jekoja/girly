@@ -16,6 +16,22 @@
 
   <!-- Profile card -->
   <section class="card glow-card stack gap-xs center" style="align-items:center">
+
+    <!-- Cover photo: the banner across the top of the card. The strip itself is
+         the control — it holds the picture, or a soft placeholder inviting one —
+         so there is no separate button to find. -->
+    <div class="cover" id="cover" role="button" tabindex="0" aria-label="Add a cover photo">
+      <img id="cover-img" alt="Your cover photo" class="hidden"/>
+      <span class="cover-empty" id="cover-empty">
+        <span class="material-symbols-outlined" style="font-size:22px">add_photo_alternate</span>
+        <span class="t-label-md">Add a cover photo</span>
+      </span>
+      <span class="cover-edit" aria-hidden="true">
+        <span class="material-symbols-outlined" id="cover-edit-icon" style="font-size:16px">add_a_photo</span>
+      </span>
+    </div>
+    <input type="file" id="cover-input" accept="image/png, image/jpeg, image/gif, image/webp" class="hidden"/>
+
     <div class="profile-avatar" id="profile-avatar" role="button" tabindex="0" aria-label="Change profile picture">
       <img id="avatar-img" alt="Profile picture" class="hidden"/>
       <span id="avatar-initials" class="t-headline-md" style="font-weight:700">—</span>
@@ -37,10 +53,14 @@
     <p class="t-body-sm muted" id="profile-since" style="margin:0"></p>
 
     <!-- The avatar is the control for adding/changing a picture; this only
-         appears once there is one to remove. -->
+         appears once there is one to remove. The banner works the same way. -->
     <button class="btn btn-quiet hidden" id="btn-remove-photo" type="button">
       <span class="material-symbols-outlined" style="font-size:17px">delete</span>
       <span>Remove Photo</span>
+    </button>
+    <button class="btn btn-quiet hidden" id="btn-remove-cover" type="button">
+      <span class="material-symbols-outlined" style="font-size:17px">delete</span>
+      <span>Remove Cover Photo</span>
     </button>
   </section>
 

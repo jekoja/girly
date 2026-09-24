@@ -30,6 +30,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   renderAvatar();
 
+  // ---- render cover photo ----
+  // Mirrors renderAvatar: the banner holds the picture or the invitation to add
+  // one, and the badge follows whichever state it is in.
+  function renderCover() {
+    const img = document.getElementById("cover-img");
+    const empty = document.getElementById("cover-empty");
+    // Nothing to remove until there is a banner to remove.
+    document.getElementById("btn-remove-cover").classList.toggle("hidden", !user.cover);
+    document.getElementById("cover").setAttribute(
+      "aria-label", user.cover ? "Change cover photo" : "Add a cover photo");
+    document.getElementById("cover-edit-icon").textContent =
+      user.cover ? "photo_camera" : "add_a_photo";
+    if (user.cover) {
+      img.src = user.cover;
+      img.classList.remove("hidden");
+      empty.classList.add("hidden");
+    } else {
+      img.removeAttribute("src");
+      img.classList.add("hidden");
+      empty.classList.remove("hidden");
+    }
+  }
+  renderCover();
+
   document.getElementById("profile-name").textContent = user.name;
   document.getElementById("profile-email").textContent = user.email;
   document.getElementById("profile-mode").lastElementChild.textContent =
@@ -40,7 +64,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ---- change picture ----
   // Client-side resize keeps uploads tiny: the picture is squashed to a
-  // 256px JPEG before it ever leaves the browser.
+  // 256px JPEG before it ever leaves the browser. The banner is a different
+  // shape, so it gets its own, larger cap — a 3:1 source lands at 1024×341,
+  // comfortably inside the server's 512 KiB ceiling at this quality.
+  const COVER_MAX_SIDE = 1024;
+
   function resizeImage(file, max = 256) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
@@ -102,6 +130,52 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderAvatar();
       Girly.mountChrome({ active: "profile", name: user.name, avatar: "", role: user.role });
       Girly.toast("Profile picture removed");
+    } catch (e) {
+      Girly.toast(e.message, "error");
+    }
+  });
+
+  // ---- change cover photo ----
+  // The same shape as the avatar: one hidden file input, the strip as the
+  // control, and a quiet button that only exists once there is something to
+  // remove. A banner change does not touch the header, so unlike the avatar it
+  // has no chrome to re-mount.
+  const coverInput = document.getElementById("cover-input");
+  function pickCover() {
+    coverInput.value = "";
+    coverInput.click();
+  }
+  document.getElementById("cover").addEventListener("click", pickCover);
+  document.getElementById("cover").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickCover(); }
+  });
+
+  coverInput.addEventListener("change", async () => {
+    const file = coverInput.files && coverInput.files[0];
+    if (!file) return;
+    try {
+      const cover = await resizeImage(file, COVER_MAX_SIDE);
+      const res = await Girly.api("/api/profile/cover", {
+        method: "POST",
+        body: JSON.stringify({ cover }),
+      });
+      user.cover = res.cover;
+      renderCover();
+      Girly.toast("Cover photo updated 💜", "favorite");
+    } catch (e) {
+      Girly.toast(e.message, "error");
+    }
+  });
+
+  document.getElementById("btn-remove-cover").addEventListener("click", async () => {
+    try {
+      await Girly.api("/api/profile/cover", {
+        method: "POST",
+        body: JSON.stringify({ cover: "" }),
+      });
+      user.cover = "";
+      renderCover();
+      Girly.toast("Cover photo removed");
     } catch (e) {
       Girly.toast(e.message, "error");
     }

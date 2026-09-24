@@ -101,7 +101,7 @@ girly-app/
 │   ├── tracker.html      # cycle ring, stats, phase calendar, quick-log sheets
 │   ├── learn.html        # education modules, first-period prep, ask bar
 │   ├── assistant.html    # chat with the companion
-│   ├── profile.html      # profile picture, change password, sign out
+│   ├── profile.html      # profile picture, cover photo, change password, sign out
 │   ├── admin.html        # stats bento, system health, member directory, audit
 │   ├── css/girly.css     # design system (tokens, pills, cards, dark mode)
 │   ├── js/*.js           # vanilla JS per page + shared helpers

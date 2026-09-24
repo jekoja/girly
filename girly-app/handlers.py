@@ -44,6 +44,7 @@ def public_user(u):
         "period_length": u.get("period_length", 0),
         "created_at": u.get("created_at", ""),
         "avatar": u.get("avatar", ""),
+        "cover": u.get("cover", ""),
     }
 
 
@@ -65,10 +66,29 @@ def role_for_email(email):
     return "admin" if (email or "").strip().lower() in admin_emails() else "user"
 
 
-# data:image/png;base64,…. — the profile picture is stored inline in the user
-# record (the frontend resizes uploads to a 256px JPEG before sending).
+# data:image/png;base64,…. — the profile picture and the cover photo are both
+# stored inline in the user record rather than on disk, so they travel with the
+# account. The frontend resizes before sending: a 256px square for the avatar, a
+# 1024px-wide banner for the cover.
 AVATAR_DATA_URL = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$")
 AVATAR_MAX_BYTES = 512 * 1024  # 512 KiB decoded
+COVER_MAX_BYTES = 512 * 1024  # 512 KiB decoded
+
+
+def image_data_url_bytes(value, what):
+    """Check that `value` is a data:image/...;base64 URL from the frontend's
+    resizer, and return how large the picture is once decoded. Raises for
+    anything else. The size is measured after decoding on purpose — base64 runs
+    about 4/3 of the bytes it carries, so counting characters would let a file
+    through at three-quarters of the ceiling it was meant to clear."""
+    m = AVATAR_DATA_URL.match(value)
+    if m:
+        try:
+            return len(base64.b64decode(m.group(2)))
+        except (ValueError, TypeError):
+            pass
+    raise ApiError(400, f"{what} must be a data URL (png, jpeg, gif, or webp)")
+
 
 # Chat attachments: photos and documents uploaded to the store.
 ATTACHMENT_TYPES = {
@@ -226,21 +246,29 @@ class App:
         empty string removes the picture."""
         u = self.require_user(headers)
         avatar = body.get("avatar", "")
-        if avatar:
-            m = AVATAR_DATA_URL.match(avatar)
-            if not m:
-                raise ApiError(400, "avatar must be a data URL (png, jpeg, gif, or webp)")
-            try:
-                decoded = base64.b64decode(m.group(2))
-            except (ValueError, TypeError):
-                raise ApiError(400, "avatar must be a data URL (png, jpeg, gif, or webp)")
-            if len(decoded) > AVATAR_MAX_BYTES:
-                raise ApiError(400, "that picture is too large — please try a smaller one")
+        if avatar and image_data_url_bytes(avatar, "avatar") > AVATAR_MAX_BYTES:
+            raise ApiError(400, "that picture is too large — please try a smaller one")
         self.store.update_user(u["id"], lambda us: us.update(avatar=avatar))
         self.store.log_audit(
             u["email"], "avatar_change", "Profile picture " + ("updated" if avatar else "removed")
         )
         return 200, {"ok": True, "avatar": avatar}, []
+
+    def api_profile_cover(self, body, query, headers):
+        """Set (or clear) the signed-in user's cover photo — the banner across
+        the top of the profile. Exactly the avatar's shape: a data:image/...;base64
+        URL from the frontend's resizer, with an empty string to remove it, and
+        the same ceiling on the decoded size. Stored on the user record rather
+        than on disk, so it survives a restart the way the avatar does."""
+        u = self.require_user(headers)
+        cover = body.get("cover", "")
+        if cover and image_data_url_bytes(cover, "cover photo") > COVER_MAX_BYTES:
+            raise ApiError(400, "that picture is too large — please try a smaller one")
+        self.store.update_user(u["id"], lambda us: us.update(cover=cover))
+        self.store.log_audit(
+            u["email"], "cover_change", "Cover photo " + ("updated" if cover else "removed")
+        )
+        return 200, {"ok": True, "cover": cover}, []
 
     def api_profile_password(self, body, query, headers):
         """Change the signed-in user's password. Other sessions are revoked;

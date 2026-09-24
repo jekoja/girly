@@ -23,10 +23,9 @@
       padding: 2px var(--sp-xs);
       margin: 0 calc(-1 * var(--sp-xs));
     }
-    /* The footer (clear button + input dock) keeps its natural size — the
-       stream gives up space instead, so the input is never clipped or pushed
-       under the bottom nav. Only on absurdly short screens does it scroll
-       inside itself. */
+    /* The footer (the input dock) keeps its natural size — the stream gives up
+       space instead, so the input is never clipped or pushed under the bottom
+       nav. Only on absurdly short screens does it scroll inside itself. */
     .chat-footer {
       flex: 0 0 auto;
       min-height: 0;
@@ -52,15 +51,6 @@
 
   <!-- Footer: input dock -->
   <div class="chat-footer stack gap-xs">
-
-    <!-- Revealed by assistant.js once there is a saved conversation. -->
-    <div class="row gap-xs" style="padding-top:var(--sp-xs); justify-content:flex-end">
-      <button class="icon-btn hidden" id="btn-clear-chat" type="button"
-              aria-label="Clear your conversation" title="Clear your conversation"
-              style="width:40px;height:40px;background:var(--surface-container-low)">
-        <span class="material-symbols-outlined" style="font-size:20px">delete_sweep</span>
-      </button>
-    </div>
 
     <!-- Chat dock -->
     <div class="chat-dock stack gap-xs">
